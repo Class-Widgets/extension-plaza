@@ -1,0 +1,135 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 20px;
+    background-color: #f3f2f1;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #323130;
+}
+
+.card-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    width: calc(50% - 20px);
+    max-width: 800px;
+    flex: 1 1 350px;
+    box-sizing: border-box;
+    display: flex;
+    transition: box-shadow 0.3s ease;
+    cursor: pointer;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.card img {
+    width: 150px;
+    height: 150px;
+    border-radius: 8px;
+    object-fit: cover;
+    margin-right: 20px;
+}
+
+.card .card-content {
+    flex: 1;
+}
+
+.card h2 {
+    margin: 0;
+    font-size: 1.4em;
+    color: #323130;
+}
+
+.card .version {
+    color: #0078d4;
+    font-weight: bold;
+}
+
+.card .author {
+    color: green;
+    font-weight: bold;
+}
+
+.card p {
+    margin: 5px 0;
+    color: #605e5c;
+}
+
+.details {
+    display: none;
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    max-width: 600px;
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.details h2 {
+    margin-top: 0;
+    font-size: 1.8em;
+    color: #323130;
+}
+
+.details .version {
+    color: #0078d4;
+    font-weight: bold;
+}
+
+.details .author {
+    color: green;
+    font-weight: bold;
+}
+
+.details p {
+    margin: 10px 0;
+    color: #605e5c;
+}
+
+.details a {
+    color: #0078d4;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.details a:hover {
+    text-decoration: underline;
+}
+
+.details .close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 20px;
+    color: #605e5c;
+    cursor: pointer;
+}
+
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
