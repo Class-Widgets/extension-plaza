@@ -1,0 +1,59 @@
+/* app/globals.css */
+
+/* 1. Tailwind 核心指令 - 保持不变 */
+@import "tailwindcss";
+
+/* 2. 统一基础样式和字体继承 */
+/* Fluent UI 的组件默认会继承 body 上的字体 */
+body {
+  /* 确保字体在整个应用中正确继承 */
+  /* 如果您在 layout.tsx 中使用了 Inter 字体，这里不需要重复定义 */
+  /* 统一字体为 Fluent Provider 的基础变量 */
+  font-family: var(--fontFamilyBase, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* 重置默认浏览器边距，确保布局从页面边缘开始 */
+  margin: 0;
+  padding: 0;
+
+  /* 确保背景色能够铺满整个页面，避免白边 */
+  min-height: 100vh;
+}
+
+/* 3. 修复文本截断 (Text Truncation) */
+/* Fluent UI 的 Text 组件经常需要 line-clamp */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
+
+
+.fluent-acrylic {
+  backdrop-filter: blur(12px) saturate(120%);
+  background: rgba(255, 255, 255, 0.65);
+}
+.dark .fluent-acrylic {
+  background: rgba(32, 32, 32, 0.55);
+}
+
+/* 焦点可见性（键盘导航） */
+.focus-ring:focus {
+  outline: 2px solid #0078D4; /* Microsoft Communication Blue */
+  outline-offset: 2px;
+}
+
+
+h1, h2, h3, h4 {
+  margin: 0;
+  padding: 0;
+}
+
+
+:root { color-scheme: light dark; }
+
+/* 6. 隐藏横向滚动条（TagPills 使用） */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
