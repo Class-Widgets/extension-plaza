@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@fluentui/react-carousel": "9.8.13",
     "@fluentui/react-components": "^9.72.8",
     "@fluentui/react-icons": "^2.0.316",
     "next": "16.0.10",

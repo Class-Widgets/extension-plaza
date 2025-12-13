@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
 import { Button, Tooltip, Text, Toolbar, ToolbarButton, TabList, Tab, SearchBox } from "@fluentui/react-components";
-import { WeatherSunny24Regular, WeatherMoon24Regular, Search24Regular } from "@fluentui/react-icons";
+import {WeatherSunny24Regular, WeatherMoon24Regular, Desktop24Regular, ArrowLeft16Regular} from "@fluentui/react-icons";
 import { useTheme } from "@/app/providers";
 import { useRouter, usePathname } from "next/navigation";
 import * as React from "react";
 
 export default function Header() {
-    const { isDarkMode, toggleTheme } = useTheme();
+    const { isDarkMode, mode, cycleMode } = useTheme();
     const router = useRouter();
     const [q, setQ] = React.useState("");
 
@@ -20,7 +20,7 @@ export default function Header() {
     return (
         <header className="sticky top-0 z-50 backdrop-blur border-b" style={{ backgroundColor: "var(--colorNeutralBackground2)", borderColor: "var(--colorNeutralStroke2)" }}>
             <div className="max-w-6xl mx-auto px-4">
-                <Toolbar aria-label="App bar" className="h-14 px-0">
+                <Toolbar aria-label="App bar" className="h-20 px-0">
                     <div className="flex items-center gap-3">
                         <Link href="/" className="flex items-center gap-2">
                             <Text weight="semibold" size={400}>Extension Plaza</Text>
@@ -34,15 +34,27 @@ export default function Header() {
 
                     {/* 搜索框整合到 Header */}
                     <div className="ml-auto flex items-center gap-2">
-                        <div className="hidden md:flex items-center gap-2">
-                            <SearchBox value={q} onChange={(e, data) => setQ(data.value ?? "")} placeholder="搜索扩展或主题" size="medium" appearance="filled-darker" className="w-64" onKeyDown={(e: any) => { if (e.key === "Enter") submitSearch(); }} />
-                        </div>
-
-                        <Tooltip content="切换主题" relationship="label">
-                            <ToolbarButton aria-label="toggle theme" onClick={toggleTheme} appearance="subtle">
-                                {isDarkMode ? <WeatherSunny24Regular /> : <WeatherMoon24Regular />}
-                            </ToolbarButton>
+                        <Tooltip content={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`} relationship="label">
+                            <button
+                                type="button"
+                                aria-label="toggle theme"
+                                onClick={cycleMode}
+                                className="rounded-full focus:outline-none focus:ring-1 focus:ring-[var(--colorNeutralStroke2)] hover:bg-[var(--colorNeutralBackground3)]"
+                                style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", color: "var(--colorNeutralForeground3)" }}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleMode(); } }}
+                                title={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`}
+                            >
+                                {mode === "system" ? <Desktop24Regular style={{ width: 20, height: 20 }} /> : (isDarkMode ? <WeatherMoon24Regular style={{ width: 20, height: 20 }} /> : <WeatherSunny24Regular style={{ width: 20, height: 20 }} />)}
+                            </button>
                         </Tooltip>
+
+                        <Button as={"a"} appearance={"transparent"} href={"https://cw.rinlit.cn"} target={"_blank"} icon={<ArrowLeft16Regular/>}>
+                            回到 Class Widgets
+                        </Button>
+
+                        <div className="hidden md:flex items-center gap-2">
+                            <SearchBox value={q} onChange={(e, data) => setQ(data.value ?? "")} placeholder="搜索扩展或主题" size="medium" className="w-64" onKeyDown={(e: any) => { if (e.key === "Enter") submitSearch(); }} />
+                        </div>
                     </div>
                 </Toolbar>
             </div>
@@ -72,7 +84,7 @@ function HeaderTabs() {
   };
 
   return (
-    <TabList size="small" appearance="subtle" selectedValue={selected} onTabSelect={onTabSelect}>
+    <TabList size="medium" selectedValue={selected} onTabSelect={onTabSelect}>
       {tabs.map(t => (
         <Tab key={t.value} value={t.value}>{t.label}</Tab>
       ))}

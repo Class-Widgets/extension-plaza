@@ -1,13 +1,8 @@
-/* app/globals.css */
-
-/* 1. Tailwind 核心指令 - 保持不变 */
 @import "tailwindcss";
 
 /* 2. 统一基础样式和字体继承 */
 /* Fluent UI 的组件默认会继承 body 上的字体 */
 body {
-  /* 确保字体在整个应用中正确继承 */
-  /* 如果您在 layout.tsx 中使用了 Inter 字体，这里不需要重复定义 */
   /* 统一字体为 Fluent Provider 的基础变量 */
   font-family: var(--fontFamilyBase, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif);
   -webkit-font-smoothing: antialiased;
@@ -20,6 +15,8 @@ body {
   /* 确保背景色能够铺满整个页面，避免白边 */
   min-height: 100vh;
 }
+
+@custom-variant dark (&:where(.tw-dark, .tw-dark *));
 
 /* 3. 修复文本截断 (Text Truncation) */
 /* Fluent UI 的 Text 组件经常需要 line-clamp */
@@ -57,3 +54,8 @@ h1, h2, h3, h4 {
 /* 6. 隐藏横向滚动条（TagPills 使用） */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+
+.banner-text-content a {
+  text-decoration: underline;
+}

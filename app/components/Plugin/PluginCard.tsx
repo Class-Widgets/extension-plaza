@@ -70,7 +70,7 @@ export default function PluginCard({ plugin }: PluginCardProps) {
   }, [hasId, plugin?.id]);
 
   // 标题字号更大，移除阴影，添加悬浮高亮与上浮效果
-  const cardClass = "relative w-full transition-transform transition-colors duration-200 hover:-translate-y-[2px] hover:bg-black/10 cursor-pointer";
+  const cardClass = "relative w-full transition-transform transition-colors duration-200 hover:-translate-y-[2px] hover:bg-black/10 cursor-pointer rounded-xl";
 
   const goDetail = () => { if (hasId) router.push(`/plugins/${plugin.id}`); };
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
@@ -92,7 +92,7 @@ export default function PluginCard({ plugin }: PluginCardProps) {
             <img
               src={imgSrc}
               alt={plugin?.name ?? "icon"}
-              className="absolute inset-0 w-full h-full object-contain border-gray-200"
+              className="absolute inset-0 w-full h-full object-contain border-gray-300 dark:border-gray-500 border-1 rounded-2xl"
               onLoad={() => setIconLoading(false)}
               onError={() => { setImgSrc("/vercel.svg"); setIconLoading(false); }}
             />
@@ -102,7 +102,7 @@ export default function PluginCard({ plugin }: PluginCardProps) {
         {/* 右侧文本区域，整体左对齐 */}
         <div className="flex-1 min-w-0 text-left">
           <CardHeader
-            header={<Text weight="semibold" size={500}>{plugin?.name ?? "未命名插件"}</Text>}
+            header={<Text weight="semibold" size={400}>{plugin?.name ?? "Undefined"}</Text>}
             description={
               authorLoading ? (
                 <Skeleton animation="wave"><SkeletonItem style={{ width: 100, height: 14, borderRadius: 6 }} /></Skeleton>

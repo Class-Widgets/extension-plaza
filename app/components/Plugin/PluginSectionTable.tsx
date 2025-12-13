@@ -35,7 +35,7 @@ export default function PluginSectionTable({ title, dataSource, options }: Plugi
 
   return (
     <Card appearance="filled" className="rounded-2xl p-4">
-      <Toolbar aria-label={title} className="mb-2 gap-3">
+      <Toolbar aria-label={title} className="mb-2 gap-3" style={{ flexWrap: "wrap" }}>
         <Text weight="semibold" size={400} style={{ marginRight: "auto" }}>{title}</Text>
         {(options?.showControls ?? true) && (
           <>
