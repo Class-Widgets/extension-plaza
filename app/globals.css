@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* 2. 统一基础样式和字体继承 */
 /* Fluent UI 的组件默认会继承 body 上的字体 */
@@ -14,6 +15,7 @@ body {
 
   /* 确保背景色能够铺满整个页面，避免白边 */
   min-height: 100vh;
+  /*line-height: ;*/
 }
 
 @custom-variant dark (&:where(.tw-dark, .tw-dark *));

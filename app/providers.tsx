@@ -79,7 +79,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const currentTheme: Theme = isDarkMode ? webDarkTheme : webLightTheme;
 
-    // 防止水化不匹配：首次挂载前隐藏内容
     if (!mounted) {
         return <div style={{ visibility: "hidden" }}>{children}</div>;
     }
@@ -88,7 +87,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeContext.Provider value={{ isDarkMode, mode, setMode: setModePersist, cycleMode }}>
             <SSRProvider>
                 <FluentProvider theme={currentTheme} className={"transition-colors duration-200"}>
-                    <div className="min-h-screen bg-transparent">
+                    <div className="min-h-screen bg-gray-200/50 dark:bg-transparent">
                         {children}
                     </div>
                 </FluentProvider>

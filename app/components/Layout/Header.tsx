@@ -18,12 +18,17 @@ export default function Header() {
     };
 
     return (
-        <header className="sticky top-0 z-50 backdrop-blur border-b" style={{ backgroundColor: "var(--colorNeutralBackground2)", borderColor: "var(--colorNeutralStroke2)" }}>
+        <header className="sticky top-0 z-50 backdrop-blur border-b bg-white/80 dark:bg-[#1f1f1f]/90" style={{ borderColor: "var(--colorNeutralStroke2)" }}>
             <div className="max-w-6xl mx-auto px-4">
                 <Toolbar aria-label="App bar" className="h-20 px-0">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="flex items-center gap-2">
-                            <Text weight="semibold" size={400}>Extension Plaza</Text>
+                    <div className="flex items-center gap-3 h-full">
+                        <Link href="/" className="flex items-center gap-2 ">
+                            <img
+                                alt={"Plugin Plaza"}
+                                src={"/images/logo.png"}
+                                className="w-9 h-9 object-contain" // 确保图片不变形
+                            />
+                            <Text weight="bold" className="!text-[18px]">插件广场</Text>
                         </Link>
 
                         {/* 顶部导航改为标签页 TabList */}
@@ -32,7 +37,7 @@ export default function Header() {
                         </div>
                     </div>
 
-                    {/* 搜索框整合到 Header */}
+                    {/* 右侧 */}
                     <div className="ml-auto flex items-center gap-2">
                         <Tooltip content={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`} relationship="label">
                             <button
@@ -69,9 +74,9 @@ function HeaderTabs() {
 
   const tabs = [
     { label: "主页", value: "home", href: "/" },
-    { label: "插件", value: "plugins", href: "/search" },
-    { label: "主题", value: "themes", href: "#" },
-    { label: "关于", value: "about", href: "#" },
+    { label: "插件", value: "plugins", href: "/plugins" },
+    { label: "主题", value: "themes", href: "/themes" },
+    { label: "关于", value: "about", href: "/404" },
   ];
 
   const selected = pathname === "/" ? "home" : (pathname?.startsWith("/search") ? "plugins" : "home");

@@ -1,0 +1,96 @@
+/* README 专用样式（与 GitHub Readme 风格适配） */
+
+/* 段落更紧凑 */
+.prose p { margin: 6px 0; line-height: 1.5; }
+
+/* 行内代码更可读 */
+.prose code { padding: 0.15em 0.35em; border-radius: 4px; background: rgba(0,0,0,0.05); }
+.dark .prose code { background: rgba(255,255,255,0.08); }
+
+/* 代码块：统一为黑底 */
+.prose pre { padding: 12px 14px; border-radius: 8px; color: #1e1f22; background: #f8fafc; overflow: auto; }
+.dark .prose pre { padding: 12px 14px; border-radius: 8px; background: #1e1f22; overflow: auto; }
+
+/* 普通引用块（非 admonition） */
+.prose blockquote { margin: 12px 0; padding: 10px 14px; border-left: 3px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #334155; }
+.dark .prose blockquote { border-left-color: #64748b; background: rgba(255,255,255,0.05); color: #cbd5e1; }
+
+/* Admonition 容器与标题 */
+.prose .admonition { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--adm-border); border-radius: 8px; background: var(--adm-bg); }
+.prose .admonition .admonition-title { font-weight: 600; margin-bottom: 6px; }
+
+/* 不同类型的 Admonition（浅色主题） */
+.prose .admonition-note { --adm-border: #3b82f6; --adm-bg: rgba(59,130,246,0.08); }
+.prose .admonition-tip { --adm-border: #10b981; --adm-bg: rgba(16,185,129,0.08); }
+.prose .admonition-important { --adm-border: #8b5cf6; --adm-bg: rgba(139,92,246,0.10); }
+.prose .admonition-warning { --adm-border: #f59e0b; --adm-bg: rgba(245,158,11,0.10); }
+.prose .admonition-caution { --adm-border: #ef4444; --adm-bg: rgba(239,68,68,0.10); }
+
+.prose .admonition-note .admonition-title { color: #3b82f6 }
+.prose .admonition-tip .admonition-title { color: #10b981 }
+.prose .admonition-important .admonition-title { color: #8b5cf6 }
+.prose .admonition-important .admonition-title { color: #f59e0b }
+.prose .admonition-caution .admonition-title { color: #ef4444 }
+
+/* 横向排列容器：例如 <div align="center"> 内的图标与徽章 */
+.prose [align="center"] { display: block; text-align: center; }
+/* 允许任意嵌套（div>p>a>img）下的徽章/图片横排并居中 */
+.prose [align="center"] img,
+.prose [align="center"] a,
+.prose [align="center"] code { display: inline-block; vertical-align: middle; }
+
+/* Markdown 段落中的徽章图片默认横排（覆盖 typography 将 img 设为 block 的行为）*/
+.prose p a img { display: inline-block; vertical-align: middle; margin: 2px 2px; }
+
+/* 代码块中的 code：不继承行内 code 的背景与反引号 */
+.prose pre code {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  color: inherit !important;
+  box-shadow: none;
+}
+.prose pre code::before,
+.prose pre code::after {
+  content: none !important;
+}
+
+.prose h1 h2 h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+/* README 标题间距覆盖：防止 typography 首元素去掉上边距 */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  margin-top: 16px;
+  margin-bottom: 10px;
+}
+/* 作为容器首元素也保留上边距 */
+.prose > h1:first-child,
+.prose > h2:first-child,
+.prose > h3:first-child,
+.prose > h4:first-child,
+.prose > h5:first-child,
+.prose > h6:first-child {
+  margin-top: 16px;
+}
+
+/* 在居中容器中同样应用标题间距 */
+.prose [align="center"] h1,
+.prose [align="center"] h2,
+.prose [align="center"] h3,
+.prose [align="center"] h4,
+.prose [align="center"] h5,
+.prose [align="center"] h6 {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 16px;
+  margin-bottom: 10px;
+}
+
+/* 行内代码：移除 Tailwind Typography 自动加的反引号 */
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+  content: none !important;
+}

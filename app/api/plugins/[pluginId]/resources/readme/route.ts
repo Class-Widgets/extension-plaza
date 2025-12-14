@@ -9,10 +9,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
 
     if (!readmeUrl.startsWith("http")) {
         const branch = manifest.branch || "main";
-        readmeUrl = `${manifest.url}/blob/${branch}/${manifest.readme}`;
-
-        const mirror = await pickMirrorFor(readmeUrl);
-        readmeUrl = `${mirror}/${readmeUrl}`
+        // 使用 raw.githubusercontent.com 直链，而非 GitHub blob HTML
+        // https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+        const { owner, repo } = parseGitHubRepo(manifest.url);
+        const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${manifest.readme}`;
+        const mirror = await pickMirrorFor(rawUrl);
+        readmeUrl = `${mirror}/${rawUrl}`;
     }
     try {
         const res = await fetch(readmeUrl);

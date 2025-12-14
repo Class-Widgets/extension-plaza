@@ -1,5 +1,6 @@
 "use client";
 import "./globals.css";
+import "./style/readme.css";
 import {Providers} from "@/app/providers";
 import Header from "@/app/components/Layout/Header";
 import Footer from "@/app/components/Layout/Footer";

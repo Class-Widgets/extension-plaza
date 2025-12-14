@@ -1,10 +1,11 @@
 "use client";
 import * as React from "react";
-import Hero from "@/app/components/Store/Hero";
+import dynamic from "next/dynamic";
+// 使用动态导入禁用 SSR，避免水合期间的 ID 不一致
+const Hero = dynamic(() => import("@/app/components/Store/Hero"), { ssr: false });
 import PluginSectionTable from "@/app/components/Plugin/PluginSectionTable";
 import PluginGrid from "@/app/components/Plugin/PluginGrid";
-import PluginCardTall from "@/app/components/Plugin/PluginCardTall";
-import PluginCardRounded from "@/app/components/Plugin/PluginCardRounded";
+// import PluginCardRounded from "@/app/components/Plugin/PluginCardRounded";
 
 export default function StoreHome() {
   const [plugins, setPlugins] = React.useState<any[]>([]);
@@ -21,13 +22,16 @@ export default function StoreHome() {
   const devtools = plugins.filter((p: any) => (p.tags ?? []).includes("开发者工具")).slice(0, 9);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <div className="flex flex-col gap-6">
       {/* 顶部视觉区（不含搜索与分类 nav） */}
       <Hero plugins={plugins} />
 
       {/* 分区：采用 PluginSectionTable 组件 */}
-      <PluginSectionTable title="为你推荐" dataSource={recommend} options={{ pageSize: 6 }} />
-      <PluginSectionTable title="热门扩展" dataSource={trending} options={{ pageSize: 6 }} />
+        <div className="flex flex-col gap-4">
+            <h2 className="text-2xl font-semibold">插件</h2>
+            <PluginSectionTable title="为你推荐" dataSource={recommend} options={{ pageSize: 6 }} />
+            <PluginSectionTable title="热门扩展" dataSource={trending} options={{ pageSize: 6 }} />
+        </div>
 
       {/* 直接使用 PluginGrid 展示一个完整区块 */}
       <section className="space-y-3">

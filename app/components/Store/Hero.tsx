@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {Button, Label, Text, Tooltip} from "@fluentui/react-components";
+import { Button, Label, Text, Tooltip, Skeleton, SkeletonItem } from "@fluentui/react-components";
 import {
   Carousel,
   CarouselAutoplayButtonProps,
@@ -40,6 +40,8 @@ function seededPick<T>(arr: T[], count: number, rng: () => number): T[] {
 
 export default function Hero({ plugins }: { plugins?: PluginInfo[] }) {
   const [banners, setBanners] = React.useState<BannerItem[]>([]);
+  const [bannerImgLoaded, setBannerImgLoaded] = React.useState<Record<number, boolean>>({});
+  const [iconLoaded, setIconLoaded] = React.useState<Record<string, boolean>>({});
   React.useEffect(() => {
     const fetchBanners = async () => {
       try {
@@ -96,7 +98,11 @@ export default function Hero({ plugins }: { plugins?: PluginInfo[] }) {
             <CarouselCard key={idx}>
               <div className={`rounded-3xl fluent-acrylic overflow-hidden relative ${heightClass}`}>
                 {s.kind === "icons" ? (
-                  <div className={`absolute inset-0 flex flex-col items-center justify-center p-6 bg-pink-200 dark:bg-cyan-900`}>
+                  <div className={
+                    `absolute inset-0 flex flex-col items-center justify-center
+                     p-6 bg-linear-to-br from-[#68C6E9] to-[#62F9BD]
+                     dark:bg-radial-[at_50%_100%] dark:from-[#1CCFD5] dark:to-[#143E73]`
+                  }>
                     <Text weight="bold" size={700} className="text-center">
                       {s.title}
                     </Text>
@@ -107,33 +113,47 @@ export default function Hero({ plugins }: { plugins?: PluginInfo[] }) {
                       {s.plugins.map((p) => (
                         <Tooltip key={p.id} content={p.name} relationship="label">
                           <Link href={`/plugins/${p.id}`} className="block" aria-label={p.name}>
-                            <div className="rounded-2xl bg-white/70 shadow-sm ring-1 ring-black/5 flex items-center justify-center">
-                              <img src={p.icon} alt={p.name} className="md:h-16 md:w-16 object-contain" />
+                            <div className="relative w-16 h-16 rounded-2xl bg-white/70 shadow-sm ring-1 ring-black/5">
+                              {!iconLoaded[p.id] && (
+                                <Skeleton animation="wave" className="absolute inset-0">
+                                  <SkeletonItem style={{ width: "100%", height: "100%", borderRadius: 16 }} />
+                                </Skeleton>
+                              )}
+                              <img
+                                src={p.icon}
+                                alt={p.name}
+                                className="absolute inset-0 w-full h-full object-contain"
+                                onLoad={() => setIconLoaded((prev) => ({ ...prev, [p.id]: true }))}
+                                onError={() => setIconLoaded((prev) => ({ ...prev, [p.id]: true }))}
+                              />
                             </div>
                           </Link>
                         </Tooltip>
                       ))}
                     </div>
-                    {/*<div className={"h-2"}></div>*/}
-                    {/*<Button appearance="secondary" size="medium" className="mt-6">*/}
-                    {/*  查看集合*/}
-                    {/*</Button>*/}
                   </div>
                 ) : (
                   <div className={`absolute inset-0`}>
+                    {!bannerImgLoaded[idx] && (
+                      <Skeleton animation="wave" className="absolute inset-0">
+                        <SkeletonItem style={{ width: "100%", height: "100%", borderRadius: 24 }} />
+                      </Skeleton>
+                    )}
                     {/* 图片 */}
                     <img
                       src={s.banner.image}
                       alt={s.banner.title ?? "banner"}
                       className="absolute inset-0 w-full h-full object-cover"
+                      onLoad={() => setBannerImgLoaded((prev) => ({ ...prev, [idx]: true }))}
+                      onError={() => setBannerImgLoaded((prev) => ({ ...prev, [idx]: true }))}
                     />
                     {/* 底部小字说明 */}
                     <div className="absolute bottom-0 left-0 right-0 h-14 text-center bg-gradient-to-t from-black/25 to-transparent flex items-center justify-center">
                       {s.banner.desc ? (
-                          <div
-                              className="banner-text-content text-white"
-                              dangerouslySetInnerHTML={{ __html: s.banner.desc }}
-                          />
+                        <div
+                          className="banner-text-content text-white"
+                          dangerouslySetInnerHTML={{ __html: s.banner.desc }}
+                        />
                       ) : null}
                     </div>
                   </div>
@@ -144,8 +164,8 @@ export default function Hero({ plugins }: { plugins?: PluginInfo[] }) {
         </CarouselSlider>
 
         <CarouselNavContainer
-            prev={{ "aria-label": "上一张" }} next={{ "aria-label": "下一张" }}
-            autoplay={{ interval: 3000, defaultAutoplay: true}}
+          prev={{ "aria-label": "上一张" }}
+          next={{ "aria-label": "下一张" }}
         >
           <CarouselNav>
             {(i) => <CarouselNavButton aria-label={`跳转到第 ${i + 1} 张`} />}
