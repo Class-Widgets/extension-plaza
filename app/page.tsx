@@ -30,14 +30,9 @@ export default function StoreHome() {
         <div className="flex flex-col gap-4">
             <h2 className="text-2xl font-semibold">插件</h2>
             <PluginSectionTable title="为你推荐" dataSource={recommend} options={{ pageSize: 6 }} />
-            <PluginSectionTable title="热门扩展" dataSource={trending} options={{ pageSize: 6 }} />
+            <h3 className="text-base font-semibold">所有扩展</h3>
+          <PluginGrid plugins={plugins} />
         </div>
-
-      {/* 直接使用 PluginGrid 展示一个完整区块 */}
-      <section className="space-y-3">
-        <h2 className="text-base font-semibold">开发者工具</h2>
-        <PluginGrid plugins={devtools} />
-      </section>
 
         {/*<PluginCardTall plugin={"com.example.plugin.id"}/>*/}
         {/*<PluginCardRounded plugin={"com.example.plugin.id"}/>*/}
