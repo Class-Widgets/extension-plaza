@@ -29,7 +29,7 @@ export default function SearchPage() {
   React.useEffect(() => {
     setLoading(true);
     // Simulate API call
-    fetch(`/api/plugins?q=${query}`)
+    fetch(`/api/plugins/search?q=${query}`)
       .then((r) => r.json())
       .then((json) => {
         setPlugins(Array.isArray(json.data) ? json.data : []);
@@ -40,10 +40,6 @@ export default function SearchPage() {
         setLoading(false);
       });
   }, [query]);
-
-  const filteredPlugins = plugins.filter((plugin) =>
-    plugin.name.toLowerCase().includes(query.toLowerCase())
-  );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -90,8 +86,8 @@ export default function SearchPage() {
                 <PluginCard key={i} plugin={null} isLoading={true} />
               ))}
             </div>
-          ) : filteredPlugins.length > 0 ? (
-            <PluginGrid plugins={filteredPlugins} />
+          ) : plugins.length > 0 ? (
+            <PluginGrid plugins={plugins} />
           ) : (
             <div className="text-center py-10">
               <Text as="p" className="text-xl text-gray-500">

@@ -161,7 +161,7 @@ export default function PluginDetailPage() {
     }
   }, [manifest]);
 
-  const sectionTag = React.useMemo(() => (Array.isArray(manifest?.tags) ? manifest?.tags[0] : null), [manifest]);
+  const sectionTags = React.useMemo(() => (Array.isArray(manifest?.tags) ? manifest?.tags : []), [manifest]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -190,9 +190,11 @@ export default function PluginDetailPage() {
                     <Link href={authorUrl} target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline">{manifest.author || "未知"}</Link>
                   </div>
                 )}
-                {sectionTag && (
-                  <div>
-                    <Link href={`/search?q=${encodeURIComponent(sectionTag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(sectionTag)}</Link>
+                {sectionTags.length > 0 && (
+                  <div className="flex gap-2">
+                    {sectionTags.map((tag) => (
+                      <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
+                    ))}
                   </div>
                 )}
               </div>
@@ -310,7 +312,7 @@ export default function PluginDetailPage() {
           <Card className="!p-8 !gap-0">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>发现更多</Text>
-               {sectionTag && <Link href={`/search?q=${encodeURIComponent(sectionTag)}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
+               {sectionTags.length > 0 && <Link href={`/search?q=${encodeURIComponent(sectionTags[0])}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
              </div>
              <Divider className="my-3" />
              {isLoadingOtherPlugins ? (
