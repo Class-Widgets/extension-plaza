@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 interface PluginCardProps {
   plugin: any;
+  isLoading?: boolean;
 }
 
 // 读取作者名称与主页链接（尽量指向仓库所有者）
@@ -36,7 +37,7 @@ async function fetchAuthorAndUrl(pluginId: string): Promise<{ name: string | nul
   }
 }
 
-export default function PluginCard({ plugin }: PluginCardProps) {
+export default function PluginCard({ plugin, isLoading }: PluginCardProps) {
   const hasId = !!plugin?.id;
   const router = useRouter();
 
@@ -76,6 +77,29 @@ export default function PluginCard({ plugin }: PluginCardProps) {
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goDetail(); }
   };
+
+  if (isLoading) {
+    return (
+      <Card appearance="filled" className={cardClass} style={{ boxShadow: "none" }}>
+        <div className="flex items-center gap-3">
+          <CardPreview className="w-16 h-16 rounded-xl overflow-hidden">
+            <Skeleton animation="wave" className="absolute inset-0">
+              <SkeletonItem style={{ width: "100%", height: "100%", borderRadius: 12 }} />
+            </Skeleton>
+          </CardPreview>
+          <div className="flex-1 min-w-0 text-left">
+            <CardHeader
+              header={<Skeleton animation="wave"><SkeletonItem style={{ width: "80%", height: 20, borderRadius: 6 }} /></Skeleton>}
+              description={<Skeleton animation="wave"><SkeletonItem style={{ width: "60%", height: 14, borderRadius: 6 }} /></Skeleton>}
+            />
+            <CardFooter>
+              <Skeleton animation="wave"><SkeletonItem style={{ width: "90%", height: 14, borderRadius: 6 }} /></Skeleton>
+            </CardFooter>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card appearance="filled" className={cardClass} style={{ boxShadow: "none" }} role="link" tabIndex={0} onClick={goDetail} onKeyDown={onKeyDown}>
