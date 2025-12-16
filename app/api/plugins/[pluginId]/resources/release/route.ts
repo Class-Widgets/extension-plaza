@@ -1,12 +1,12 @@
 // app/api/plugins/[pluginId]/resources/release/route.ts
 import { NextResponse } from "next/server";
-import { getManifest, parseGitHubRepo } from "@/lib/pluginUtils";
+import { getManifestFromGitHub, parseGitHubRepo } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     try {
         const { pluginId } = await ctx.params;
-        const manifest = getManifest(pluginId);
+        const manifest = await getManifestFromGitHub(pluginId);
 
         let releaseUrl = `${manifest.url}/releases/latest/download/${manifest.id}.zip`;
         const mirror = await pickMirrorFor(releaseUrl);

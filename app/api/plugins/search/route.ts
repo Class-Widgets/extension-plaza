@@ -1,6 +1,6 @@
 // app/api/plugins/search/route.ts
 import { NextResponse } from 'next/server';
-import { getAllManifests, getTagText } from '@/lib/pluginUtils';
+import { getAllManifestsFromGitHub } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
   try {
@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     const locale = url.searchParams.get('locale') || undefined;
     const q = qRaw.trim().toLowerCase();
 
-    const manifests = await getAllManifests();
+    const manifests = await getAllManifestsFromGitHub();
     if (!q) {
       return NextResponse.json({ ok: true, data: [] });
     }
@@ -20,7 +20,9 @@ export async function GET(req: Request) {
       const desc = String(m.description || '').toLowerCase();
       const author = String(m.author || '').toLowerCase();
       const tagIds: string[] = Array.isArray(m.tags) ? m.tags : [];
-      const tagTexts = tagIds.map(t => getTagText(t, locale).toLowerCase());
+      
+      // 简化版本，直接使用tagIds而不查询翻译
+      const tagTexts = tagIds;
 
       const haystack = [id, name, desc, author, ...tagIds.map(t=>t.toLowerCase()), ...tagTexts].join('\n');
       return haystack.includes(q);

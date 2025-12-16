@@ -6,7 +6,7 @@ import { Button, Text, Card, Skeleton, SkeletonItem, Divider } from "@fluentui/r
 import { marked } from "marked";
 import PluginList from "@/app/components/Plugin/PluginList";
 import DOMPurify from "dompurify";
-import tagsMap from "@/app/data/tags.json";
+// import tagsMap from "@/app/data/tags.json"; // 已迁移到GitHub，通过API获取
 import { TagRegular, InfoRegular, CodeRegular, BranchRegular, PersonRegular, ClockRegular } from "@fluentui/react-icons";
 
 // README 渲染（支持 GitHub 风格 admonition + 占位符解析）
@@ -91,6 +91,7 @@ export default function PluginDetailPage() {
   const [isLoadingOtherPlugins, setIsLoadingOtherPlugins] = React.useState(true);
   const [releaseDate, setReleaseDate] = React.useState<string | null>(null);
   const [isLoadingReleaseDate, setIsLoadingReleaseDate] = React.useState(true);
+  const [tagsMap, setTagsMap] = React.useState<Record<string, any>>({});
 
   const iconSrc = React.useMemo(() => `/api/plugins/${pluginId}/resources/icon`, [pluginId]);
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release`, [pluginId]);
@@ -107,6 +108,19 @@ export default function PluginDetailPage() {
       .then((r) => (r.ok ? r.text() : Promise.reject()))
       .then((text) => setReadme(text))
       .catch(() => setReadme("# 暂无说明\n当前插件未提供 README 内容。"));
+
+    // 加载 tags 数据
+    fetch('/api/plugins/tags')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((response) => {
+        // 确保提取正确的数据部分
+        if (response && response.ok && response.data) {
+          setTagsMap(response.data);
+        } else {
+          setTagsMap({});
+        }
+      })
+      .catch(() => setTagsMap({}));
   }, [pluginId]);
 
   React.useEffect(() => {
@@ -162,6 +176,14 @@ export default function PluginDetailPage() {
   }, [manifest]);
 
   const sectionTags = React.useMemo(() => (Array.isArray(manifest?.tags) ? manifest?.tags : []), [manifest]);
+  
+  // 获取标签名称的函数，现在在组件内部定义，可以访问 tagsMap
+  const getTagName = React.useCallback((id?: string) => {
+    if (!id) return "";
+    const tag = tagsMap[id];
+    // API返回的数据使用zh_CN和en_US键
+    return tag?.["zh_CN"] ?? tag?.["en_US"] ?? id;
+  }, [tagsMap]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
@@ -192,7 +214,7 @@ export default function PluginDetailPage() {
                 )}
                 {sectionTags.length > 0 && (
                   <div className="flex gap-2">
-                    {sectionTags.map((tag) => (
+                    {sectionTags.map((tag: string) => (
                       <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
                     ))}
                   </div>
@@ -338,9 +360,3 @@ export default function PluginDetailPage() {
 
 // 配置 marked，启用 GFM，保留标题与代码块等语义标签
 marked.setOptions({ gfm: true, breaks: false });
-
-const getTagName = (id?: string) => {
-  if (!id) return "";
-  const tag = (tagsMap as Record<string, { [key: string]: string }>)[id];
-  return tag?.["zh-CN"] ?? tag?.en ?? id;
-};

@@ -1,6 +1,11 @@
 import fs from "fs";
 import path from "path";
 
+// GitHub存储库配置
+const GITHUB_REPO = "https://github.com/Class-Widgets/plugin-plaza";
+const GITHUB_BRANCH = "main";
+const GITHUB_API_BASE = "https://raw.githubusercontent.com/Class-Widgets/plugin-plaza/main";
+
 export function getManifest(pluginId: string) {
     const pluginPath = path.join(process.cwd(), "manifests", `${pluginId}.json`);
     if (!fs.existsSync(pluginPath)) {
@@ -45,13 +50,38 @@ export function getTagsStore(): Record<string, string | Record<string, string>> 
 }
 
 /** 根据 tagId 映射展示文本（可选 locale） */
-export function getTagText(tagId: string, locale?: string): string {
-    const store = getTagsStore();
-    const v = store[tagId];
-    if (!v) return tagId;
-    if (typeof v === 'string') return v;
-    if (locale && v[locale]) return v[locale];
-    return v['en'] || v['zh-CN'] || Object.values(v)[0] || tagId;
+export async function getTagText(tagId: string, locale?: string): Promise<string> {
+    try {
+        const store = await getTagsFromGitHub();
+        const v = store[tagId];
+        if (!v) return tagId;
+        if (typeof v === 'string') return v;
+        
+        // 优先使用指定的locale
+        if (locale) {
+            if (v[locale]) return v[locale];
+            // 尝试不同的locale格式映射
+            const localeMap: Record<string, string> = {
+                'en': 'en_US',
+                'zh-CN': 'zh_CN',
+                'en_US': 'en',
+                'zh_CN': 'zh-CN'
+            };
+            const mappedLocale = localeMap[locale];
+            if (mappedLocale && v[mappedLocale]) return v[mappedLocale];
+        }
+        
+        // 默认优先级：zh_CN, en_US, 其他
+        return v['zh_CN'] || v['en_US'] || Object.values(v)[0] || tagId;
+    } catch (error) {
+        console.warn('Failed to fetch tags from GitHub, using local fallback:', error);
+        const store = getTagsStore();
+        const v = store[tagId];
+        if (!v) return tagId;
+        if (typeof v === 'string') return v;
+        if (locale && v[locale]) return v[locale];
+        return v['en'] || v['zh-CN'] || Object.values(v)[0] || tagId;
+    }
 }
 
 /**
@@ -134,4 +164,161 @@ export async function processReadmeImages(
 
     console.timeEnd(`processReadmeImages for ${repoUrl}`);
     return processedReadme;
+}
+
+/**
+ * 从GitHub存储库获取Banner数据
+ */
+export async function getBannerFromGitHub(name: string = 'home') {
+    const bannerUrl = `${GITHUB_API_BASE}/ClassWidgets2/banners/${name}.json`;
+    
+    try {
+        const response = await fetch(bannerUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch banner: ${response.statusText}`);
+        }
+        
+        const bannerData = await response.json();
+        
+        // 处理图片路径，将相对路径转换为绝对路径
+        if (bannerData.slides && Array.isArray(bannerData.slides)) {
+            bannerData.slides = bannerData.slides.map((slide: any) => {
+                let imagePath = slide.image;
+                // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
+                if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
+                    // 如果以 /images/ 开头，直接替换为banners/images/
+                    if (imagePath.startsWith('/images/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
+                    }
+                    // 如果以 images/ 开头，添加前导斜杠和banners目录
+                    else if (imagePath.startsWith('images/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                    }
+                    // 其他相对路径，假设相对于banners目录
+                    else if (!imagePath.startsWith('/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                    }
+                }
+                return {
+                    ...slide,
+                    image: imagePath
+                };
+            });
+        }
+        
+        return bannerData;
+    } catch (error) {
+        console.error(`Error fetching banner from GitHub:`, error);
+        throw error;
+    }
+}
+
+/**
+ * 从GitHub存储库获取单个Plugin Manifest
+ */
+export async function getManifestFromGitHub(pluginId: string) {
+    const manifestUrl = `${GITHUB_API_BASE}/ClassWidgets2/plugins/manifest/${pluginId}.json`;
+    
+    try {
+        const response = await fetch(manifestUrl);
+        if (!response.ok) {
+            throw new Error(`${pluginId} 插件不存在`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Error fetching manifest from GitHub:`, error);
+        throw error;
+    }
+}
+
+/**
+ * 从GitHub存储库获取所有Plugin Manifests
+ */
+export async function getAllManifestsFromGitHub() {
+    // 由于GitHub Raw URL不支持目录列表，我们使用一个预定义的已知插件列表
+    // 这些是GitHub仓库中实际存在的插件
+    
+    const knownPluginIds = [
+        'example.plugin.id'
+        // 可以在这里添加更多已知的插件ID
+        // 例如: 'plugin.id.2', 'plugin.id.3', 等等
+    ];
+    
+    try {
+        // 获取每个插件的manifest
+        const manifests = await Promise.all(
+            knownPluginIds.map(async (pluginId) => {
+                try {
+                    return await getManifestFromGitHub(pluginId);
+                } catch (error) {
+                    console.warn(`Failed to fetch manifest for ${pluginId}:`, error);
+                    return null;
+                }
+            })
+        );
+        
+        const validManifests = manifests.filter(Boolean);
+        console.log(`Successfully fetched ${validManifests.length} plugins from GitHub`);
+        return validManifests;
+    } catch (error) {
+        console.error('Error fetching plugins from GitHub:', error);
+        // 不再回退到本地方法，返回空数组
+        return [];
+    }
+}
+
+/**
+ * 处理Banner图片路径，将相对路径转换为GitHub绝对路径
+ */
+export function processBannerImages(bannerData: any) {
+    if (!bannerData.slides || !Array.isArray(bannerData.slides)) {
+        return bannerData;
+    }
+    
+    bannerData.slides = bannerData.slides.map((slide: any) => {
+        let imagePath = slide.image;
+        // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
+        if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
+            // 如果以 /images/ 开头，直接替换为banners/images/
+            if (imagePath.startsWith('/images/')) {
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
+            }
+            // 如果以 images/ 开头，添加前导斜杠和banners目录
+            else if (imagePath.startsWith('images/')) {
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+            }
+            // 其他相对路径，假设相对于banners目录
+            else if (!imagePath.startsWith('/')) {
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+            }
+        }
+        
+        return {
+            ...slide,
+            image: imagePath
+        };
+    });
+    
+    return bannerData;
+}
+
+/**
+ * 从GitHub存储库获取Tags数据
+ */
+export async function getTagsFromGitHub() {
+    const tagsUrl = `${GITHUB_API_BASE}/ClassWidgets2/tags.json`;
+    
+    try {
+        const response = await fetch(tagsUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch tags: ${response.statusText}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error(`Error fetching tags from GitHub:`, error);
+        // 回退到本地方法
+        return getTagsStore();
+    }
 }
