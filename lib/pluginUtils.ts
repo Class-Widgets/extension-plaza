@@ -90,13 +90,15 @@ export async function getTagText(tagId: string, locale?: string): Promise<string
  * @param repoUrl 仓库 URL (e.g., "https://github.com/owner/repo")
  * @param branch 仓库分支 (e.g., "main")
  * @param pickMirrorFor 代理函数
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  * @returns 处理后的 README 文本内容
  */
 export async function processReadmeImages(
     readmeContent: string,
     repoUrl: string,
     branch: string,
-    pickMirrorFor: (url: string) => Promise<string>
+    pickMirrorFor: (url: string, noMirror?: boolean) => Promise<string>,
+    noMirror: boolean = false
 ): Promise<string> {
     console.time(`processReadmeImages for ${repoUrl}`);
     const { owner, repo } = parseGitHubRepo(repoUrl);
@@ -131,8 +133,8 @@ export async function processReadmeImages(
         const fullUrl = `${githubRawBaseUrl}/${img.original}`;
         let proxiedUrl = fullUrl; // 默认使用原始完整 URL
         try {
-            const mirrorPrefix = await pickMirrorFor(fullUrl);
-            proxiedUrl = `${mirrorPrefix}/${fullUrl}`;
+            const mirrorPrefix = await pickMirrorFor(fullUrl, noMirror);
+            proxiedUrl = noMirror ? fullUrl : `${mirrorPrefix}/${fullUrl}`;
         } catch (error) {
             console.error(`Error proxying image ${fullUrl}:`, error);
             // 如果代理失败，则使用原始的 GitHub raw URL，或者在前端进行进一步处理
@@ -168,8 +170,10 @@ export async function processReadmeImages(
 
 /**
  * 从GitHub存储库获取Banner数据
+ * @param name Banner名称，默认为'home'
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
-export async function getBannerFromGitHub(name: string = 'home') {
+export async function getBannerFromGitHub(name: string = 'home', noMirror: boolean = false) {
     const bannerUrl = `${GITHUB_API_BASE}/ClassWidgets2/banners/${name}.json`;
     
     try {
@@ -198,6 +202,11 @@ export async function getBannerFromGitHub(name: string = 'home') {
                     else if (!imagePath.startsWith('/')) {
                         imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
                     }
+                    
+                    // 如果noMirror为true，不使用镜像，直接返回原始URL
+                    if (noMirror) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/images/${imagePath.replace('/images/', '')}`;
+                    }
                 }
                 return {
                     ...slide,
@@ -215,17 +224,22 @@ export async function getBannerFromGitHub(name: string = 'home') {
 
 /**
  * 从GitHub存储库获取单个Plugin Manifest
+ * @param pluginId 插件ID
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
-export async function getManifestFromGitHub(pluginId: string) {
+export async function getManifestFromGitHub(pluginId: string, noMirror: boolean = false) {
     const manifestUrl = `${GITHUB_API_BASE}/ClassWidgets2/plugins/manifest/${pluginId}.json`;
+    console.log(`Fetching manifest from: ${manifestUrl}`);
     
     try {
         const response = await fetch(manifestUrl);
         if (!response.ok) {
-            throw new Error(`${pluginId} 插件不存在`);
+            throw new Error(`${pluginId} 插件不存在: HTTP ${response.status}`);
         }
         
-        return await response.json();
+        const manifest = await response.json();
+        console.log(`Successfully fetched manifest for ${pluginId}`);
+        return manifest;
     } catch (error) {
         console.error(`Error fetching manifest from GitHub:`, error);
         throw error;
@@ -234,36 +248,33 @@ export async function getManifestFromGitHub(pluginId: string) {
 
 /**
  * 从GitHub存储库获取所有Plugin Manifests
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
-export async function getAllManifestsFromGitHub() {
-    // 由于GitHub Raw URL不支持目录列表，我们使用一个预定义的已知插件列表
-    // 这些是GitHub仓库中实际存在的插件
-    
-    const knownPluginIds = [
-        'example.plugin.id'
-        // 可以在这里添加更多已知的插件ID
-        // 例如: 'plugin.id.2', 'plugin.id.3', 等等
-    ];
-    
+export async function getAllManifestsFromGitHub(noMirror: boolean = false) {
     try {
-        // 获取每个插件的manifest
-        const manifests = await Promise.all(
-            knownPluginIds.map(async (pluginId) => {
-                try {
-                    return await getManifestFromGitHub(pluginId);
-                } catch (error) {
-                    console.warn(`Failed to fetch manifest for ${pluginId}:`, error);
-                    return null;
-                }
-            })
-        );
+        // 直接从index.json文件获取插件列表
+        const indexUrl = `${GITHUB_API_BASE}/ClassWidgets2/plugins/index.json`;
+        console.log(`Fetching plugin index from: ${indexUrl}`);
         
-        const validManifests = manifests.filter(Boolean);
-        console.log(`Successfully fetched ${validManifests.length} plugins from GitHub`);
-        return validManifests;
+        // 从GitHub获取索引文件
+        const response = await fetch(indexUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch plugin index: ${response.statusText} - ${await response.text()}`);
+        }
+        
+        // 解析索引文件
+        const indexData = await response.json();
+        console.log(`Successfully fetched plugin index with ${indexData.plugins.length} plugins`);
+        
+        // 提取插件列表并返回
+        const plugins = indexData.plugins || [];
+        console.log(`Extracted ${plugins.length} plugins from index`);
+        
+        return plugins;
     } catch (error) {
         console.error('Error fetching plugins from GitHub:', error);
-        // 不再回退到本地方法，返回空数组
+        // 返回空数组
         return [];
     }
 }
@@ -306,8 +317,20 @@ export function processBannerImages(bannerData: any) {
 /**
  * 从GitHub存储库获取Tags数据
  */
-export async function getTagsFromGitHub() {
-    const tagsUrl = `${GITHUB_API_BASE}/ClassWidgets2/tags.json`;
+/**
+ * 从GitHub存储库获取标签数据
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
+ */
+export async function getTagsFromGitHub(noMirror: boolean = false) {
+    let tagsUrl = `${GITHUB_API_BASE}/ClassWidgets2/tags.json`;
+    
+    // 如果noMirror为true，使用pickMirrorFor跳过镜像选择
+    if (noMirror) {
+        // noMirror为true时，仍然使用原始URL不变
+    } else {
+        // 正常情况下，可以在这里添加镜像选择逻辑
+        // 但由于我们已经构建了直接GitHub URL，这里不需要额外处理
+    }
     
     try {
         const response = await fetch(tagsUrl);

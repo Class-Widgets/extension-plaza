@@ -40,8 +40,15 @@ export async function pickFastestApiMirror(): Promise<string> {
 
 /**
  * 根据 URL 自动选择是否使用普通镜像或 API 镜像
+ * @param url 原始URL
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
-export async function pickMirrorFor(url: string): Promise<string> {
+export async function pickMirrorFor(url: string, noMirror: boolean = false): Promise<string> {
+    // 如果noMirror为true，直接返回原始URL
+    if (noMirror) {
+        return url;
+    }
+    
     if (url.includes("api.github.com")) {
         return pickFastestApiMirror();
     }
