@@ -71,10 +71,11 @@ export default function Header() {
                             </div>
 
                             {/* 移动端搜索按钮 */}
-                            <div className="md:hidden">
+                            <div className="lg:hidden">
                                 <Button
                                     appearance="transparent"
                                     icon={<Search24Regular />}
+                                    onClick={() => setIsMobileSearchOpen(true)}
                                     aria-label="搜索"
                                 />
                             </div>
@@ -95,7 +96,7 @@ export default function Header() {
                             </Tooltip>
 
                             {/* 移动端汉堡菜单按钮 */}
-                            <div className={"md:hidden"}>
+                            <div className={"lg:hidden"}>
                                 <Button
                                     appearance="transparent"
                                     icon={<Navigation24Regular />}
@@ -109,7 +110,12 @@ export default function Header() {
             </header>
 
             {/* 移动端搜索抽屉 */}
-            <Drawer open={isMobileSearchOpen} onOpenChange={(_, data) => setIsMobileSearchOpen(data.open ?? false)}>
+            <Drawer 
+                position="end"
+                open={isMobileSearchOpen} 
+                onOpenChange={(_, data) => setIsMobileSearchOpen(data.open ?? false)}
+                className="right-drawer"
+            >
                 <DrawerBody>
                     <div className="p-4 space-y-4">
                         <div className="flex items-center justify-between">
@@ -138,7 +144,12 @@ export default function Header() {
             </Drawer>
 
             {/* 移动端导航抽屉 */}
-            <Drawer open={isMobileMenuOpen} onOpenChange={(_, data) => setIsMobileMenuOpen(data.open ?? false)}>
+            <Drawer 
+                position="end"
+                open={isMobileMenuOpen} 
+                onOpenChange={(_, data) => setIsMobileMenuOpen(data.open ?? false)}
+                className="right-drawer"
+            >
                 <DrawerBody>
                     <div className="p-4 space-y-6">
                         <div className="flex items-center justify-between">
