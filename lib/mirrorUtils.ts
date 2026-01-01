@@ -4,13 +4,18 @@ async function testMirror(url: string) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 2000);
-        const start = performance.now();
+        // 使用Date.now()代替performance.now()以提高兼容性
+        const start = Date.now();
 
-        // 使用 HEAD 测试响应时间
-        await fetch(url, { method: "HEAD", signal: controller.signal });
+        // 使用简单的GET请求测试镜像可用性，只获取前几个字节
+        await fetch(url, { 
+            method: "GET", 
+            signal: controller.signal,
+            headers: { "Range": "bytes=0-100" } // 只请求前100字节以提高速度
+        });
 
         clearTimeout(timeout);
-        return performance.now() - start;
+        return Date.now() - start;
     } catch {
         return Infinity; // 超时或错误，算作最慢
     }
@@ -49,8 +54,30 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
         return url;
     }
     
-    if (url.includes("api.github.com")) {
-        return pickFastestApiMirror();
-    }
-    return pickFastestMirror();
+    // 根据URL类型选择镜像源
+    const sources = url.includes("api.github.com") ? apiMirrorSources : mirrorSources;
+    
+    // 创建测试URLs，使用实际资源URL的一部分进行测试
+    // 选择一个简单的GitHub资源作为测试目标
+    const testUrl = "https://github.com/Class-Widgets/plugin-plaza/raw/main/README.md";
+    
+    // 测试所有镜像源
+    const tests = await Promise.all(
+        sources.map(async (mirror) => {
+            // 构造完整的测试URL
+            const fullTestUrl = `${mirror}/${testUrl.replace("https://", "")}`;
+            try {
+                const time = await testMirror(fullTestUrl);
+                return { mirror, time };
+            } catch {
+                return { mirror, time: Infinity };
+            }
+        })
+    );
+    
+    // 按响应时间排序
+    tests.sort((a, b) => a.time - b.time);
+    
+    // 返回最快的镜像源
+    return tests[0].mirror;
 }
