@@ -229,7 +229,7 @@ export default function PluginDetailPage() {
           <img
             src={iconSrc}
             alt={manifest?.name || String(pluginId)}
-            className={`w-24 h-24 object-contain ${iconLoaded ? "" : "hidden"}`}
+            className={`w-24 h-24 object-contain rounded-3xl ${iconLoaded ? "" : "hidden"}`}
             onLoad={() => setIconLoaded(true)}
             onError={() => { setIconLoaded(true); setIconSrc("/images/default_plugin.png"); }}
           />

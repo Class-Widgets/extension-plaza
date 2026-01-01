@@ -121,7 +121,7 @@ export default function Banner({ plugins }: { plugins?: PluginInfo[] }) {
                                       <img
                                           src={p.icon}
                                           alt={p.name}
-                                          className="absolute inset-0 w-full h-full object-contain"
+                                          className="absolute inset-0 w-full h-full object-contain rounded-2xl"
                                           onLoad={() => setIconLoaded((prev) => ({ ...prev, [p.id]: true }))}
                                           onError={() => setIconLoaded((prev) => ({ ...prev, [p.id]: true }))}
                                       />
