@@ -15,9 +15,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
 
         const manifest = await getManifestFromGitHub(pluginId);
         
-        let releaseUrl = `${manifest.url}releases/latest/download/${manifest.id}.${format}`;
+        // 确保 manifest.url 以斜杠结尾，然后构建正确的 release URL
+        let releaseUrl = `${manifest.url.replace(/\/$/, '')}/releases/latest/download/${manifest.id}.${format}`;
         const mirror = await pickMirrorFor(releaseUrl);
-        releaseUrl = `${mirror}/${releaseUrl}`;
+        // 移除原始 URL 的协议前缀，确保镜像 URL 格式正确
+        releaseUrl = `${mirror}/${releaseUrl.replace('https://', '')}`;
 
         return NextResponse.redirect(releaseUrl);
     } catch (err: any) {
