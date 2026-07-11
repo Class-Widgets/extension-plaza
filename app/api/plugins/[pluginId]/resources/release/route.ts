@@ -15,15 +15,29 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
 
         const manifest = await getPluginManifest(pluginId);
         
-        // 确保 manifest.url 以斜杠结尾，然后构建正确的 release URL
+        // 构建原始 release 下载 URL
         let releaseUrl = `${manifest.url.replace(/\/$/, '')}/releases/latest/download/${manifest.id}.${format}`;
         const mirror = await pickMirrorFor(releaseUrl);
-        // 移除原始 URL 的协议前缀，确保镜像 URL 格式正确
         releaseUrl = `${mirror}/${releaseUrl.replace('https://', '')}`;
 
-        const response = NextResponse.redirect(releaseUrl);
-        response.headers.set("Cache-Control", "public, max-age=60, s-maxage=300");
-        return response;
+        // 代理下载，设置自定义文件名
+        const remoteRes = await fetch(releaseUrl);
+        if (!remoteRes.ok) {
+            return NextResponse.json({ error: `Failed to fetch release: ${remoteRes.statusText}` }, { status: remoteRes.status });
+        }
+
+        const filename = `${manifest.name} (${manifest.id}.${format})`;
+        const encodedFilename = encodeURIComponent(filename);
+        const body = await remoteRes.arrayBuffer();
+
+        return new NextResponse(body, {
+            headers: {
+                "Content-Disposition": `attachment; filename*=UTF-8''${encodedFilename}`,
+                "Content-Type": remoteRes.headers.get("Content-Type") || "application/octet-stream",
+                "Content-Length": String(body.byteLength),
+                "Cache-Control": "public, max-age=60, s-maxage=300",
+            },
+        });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });
     }
