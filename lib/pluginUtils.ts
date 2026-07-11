@@ -22,7 +22,7 @@ type PluginRow = {
     created_at: string;
     updated_at: string;
     cw_plugin_item_tags?: Array<{
-        cw_plugin_tags?: { name: string } | { name: string }[] | null;
+        cw_plugin_tags?: { id: string; name: string } | { id: string; name: string }[] | null;
     }>;
 };
 
@@ -38,8 +38,11 @@ const DOWNLOAD_CACHE_TTL = 30 * 60 * 1000;
 
 function normalizePluginRow(row: PluginRow, displayName?: string | null) {
     const tags = (row.cw_plugin_item_tags || [])
-        .map((item) => Array.isArray(item.cw_plugin_tags) ? item.cw_plugin_tags[0]?.name : item.cw_plugin_tags?.name)
-        .filter((name): name is string => Boolean(name));
+        .map((item) => {
+            const tag = Array.isArray(item.cw_plugin_tags) ? item.cw_plugin_tags[0] : item.cw_plugin_tags;
+            return tag ? { id: tag.id, name: tag.name } : null;
+        })
+        .filter((t): t is { id: string; name: string } => Boolean(t));
 
     return {
         id: row.id,
@@ -47,7 +50,6 @@ function normalizePluginRow(row: PluginRow, displayName?: string | null) {
         description: row.description || "",
         url: row.repo_url,
         repo_url: row.repo_url,
-        repository: row.repo_url,
         branch: row.branch || "main",
         version: row.version || "1.0.0",
         api_version: row.api_version || undefined,
@@ -80,7 +82,7 @@ function pluginSelect() {
         created_at,
         updated_at,
         cw_plugin_item_tags(
-            cw_plugin_tags(name)
+            cw_plugin_tags(id, name)
         )
     `;
 }

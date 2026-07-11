@@ -118,6 +118,10 @@ export default function PluginDetailPage() {
   const [ratingComment, setRatingComment] = React.useState("");
   const [isSubmittingRating, setIsSubmittingRating] = React.useState(false);
   const [ratingSubmitError, setRatingSubmitError] = React.useState<string | null>(null);
+  const [isReadmeExpanded, setIsReadmeExpanded] = React.useState(false);
+  const [shouldCollapseReadme, setShouldCollapseReadme] = React.useState(false);
+  const [readmeMaxHeight, setReadmeMaxHeight] = React.useState(0);
+  const readmeContentRef = React.useRef<HTMLDivElement>(null);
 
   const [iconSrc, setIconSrc] = React.useState<string>(`/api/plugins/${pluginId}/resources/icon`);
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=zip`, [pluginId]);
@@ -221,8 +225,9 @@ export default function PluginDetailPage() {
         const res = await fetch(`/api/plugins`);
         const json = await res.json();
         const list: any[] = Array.isArray(json.data) ? json.data : [];
-        const tags: string[] = Array.isArray(manifest?.tags) ? manifest!.tags : [];
-        const sameSection = tags.length > 0 ? list.filter((p) => p.id !== pluginId && (p.tags ?? []).some((t: string) => tags.includes(t))) : list.filter((p) => p.id !== pluginId);
+        const tags: any[] = Array.isArray(manifest?.tags) ? manifest!.tags : [];
+        const tagIds = tags.map((t: any) => t.id || t);
+        const sameSection = tagIds.length > 0 ? list.filter((p) => p.id !== pluginId && (p.tags ?? []).some((t: any) => tagIds.includes(t.id || t))) : list.filter((p) => p.id !== pluginId);
         const shuffled = sameSection.sort(() => Math.random() - 0.5);
         setOtherPlugins(shuffled.slice(0, 6));
       } catch {
@@ -258,6 +263,20 @@ export default function PluginDetailPage() {
       document.title = `${manifest.name} - Class Widgets 插件广场(测试)`;
     }
   }, [manifest]);
+
+  React.useEffect(() => {
+    const updateReadmeCollapse = () => {
+      const maxHeight = Math.floor(window.innerHeight * 0.75);
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+      const contentHeight = readmeContentRef.current?.scrollHeight ?? 0;
+      setReadmeMaxHeight(maxHeight);
+      setShouldCollapseReadme(isMobile && contentHeight > maxHeight);
+    };
+
+    updateReadmeCollapse();
+    window.addEventListener("resize", updateReadmeCollapse);
+    return () => window.removeEventListener("resize", updateReadmeCollapse);
+  }, [readme]);
 
   const getTagName = React.useCallback((id?: string) => {
     if (!id) return "";
@@ -316,10 +335,10 @@ export default function PluginDetailPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 rounded-3xl overflow-hidden">
+    <div className="max-w-6xl mx-auto px-4 py-6 rounded-3xl overflow-hidden">
       {/* 顶部应用信息区域 */}
-      <section className="flex flex-col sm:flex-row sm:items-start gap-4">
-        <div className="w-24 h-24 flex items-center justify-center mx-auto sm:mx-0">
+      <section className="flex flex-col md:flex-row md:items-start gap-4">
+        <div className="w-24 h-24 flex items-center justify-center mx-auto md:mx-0">
           {!iconLoaded && (
             <Skeleton>
               <SkeletonItem shape="rectangle" style={{ width: 96, height: 96, borderRadius: 24 }} />
@@ -333,7 +352,7 @@ export default function PluginDetailPage() {
             onError={() => { setIconLoaded(true); setIconSrc("/images/default_plugin.png"); }}
           />
         </div>
-         <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left">
+         <div className="flex-1 min-w-0 space-y-2 text-center md:text-left">
           {manifest ? (
             <>
               <Text weight="semibold" size={700} className="truncate">{manifest.name}</Text>
@@ -344,7 +363,7 @@ export default function PluginDetailPage() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300 sm:justify-start">
+              <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300 md:justify-start">
                 {ratingSummary.total > 0 && (
                   <>
                     <div className="flex items-center gap-1 whitespace-nowrap" style={{ color: "var(--colorPaletteMarigoldForeground1)" }}>
@@ -357,16 +376,16 @@ export default function PluginDetailPage() {
                   </>
                 )}
                 {sectionTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-                    {sectionTags.map((tag: string) => (
-                      <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
+                  <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                    {sectionTags.map((tag: any) => (
+                      <Link key={tag.id || tag} href={`/search?q=${encodeURIComponent(tag.name || tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag.id)}</Link>
                     ))}
                   </div>
                 )}
               </div>
               <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{manifest.description}</div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-2 pt-2">
-                <div className="flex-1 sm:flex-none">
+              <div className="flex flex-row items-center justify-center md:justify-start flex-wrap gap-3 md:gap-2 pt-2">
+                <div className="flex-none">
                   {manifest && releasePageUrl ? (
                       <Menu positioning="below-end">
                         <MenuTrigger disableButtonEnhancement>
@@ -426,7 +445,7 @@ export default function PluginDetailPage() {
             </>
           ) : manifestError ? (
             <div className="flex-1">
-              <Card className="!p-4 sm:!p-6 !gap-2" style={{ boxShadow: "none" }}>
+              <Card className="!p-4 md:!p-6 !gap-2" style={{ boxShadow: "none" }}>
                 <Text weight="semibold" size={500} style={{ color: "var(--colorPaletteRedForeground1)" }}>
                   {manifestError.status ? `加载失败 (${manifestError.status})` : "加载失败"}
                 </Text>
@@ -446,7 +465,7 @@ export default function PluginDetailPage() {
         </div>
       </section>
 
-      {manifest && (<div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] gap-5 mt-12">
+      {manifest && (<div className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] gap-5 mt-12">
         {/* 主体左侧 说明 + 其他信息 */}
         <div className="space-y-4">
           <Card className="!p-4 sm:!p-8 !gap-0">
@@ -457,11 +476,23 @@ export default function PluginDetailPage() {
                  <Spinner size="large" />
                </div>
              ) : (
-               <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: renderReadmeHtml(readme, manifest) }} />
+               <>
+                 <div
+                   className="overflow-hidden"
+                   style={shouldCollapseReadme && !isReadmeExpanded ? { maxHeight: `${readmeMaxHeight}px` } : undefined}
+                 >
+                   <div ref={readmeContentRef} className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: renderReadmeHtml(readme, manifest) }} />
+                 </div>
+                 {shouldCollapseReadme && (
+                   <Button appearance="subtle" className="!mt-3" onClick={() => setIsReadmeExpanded((expanded) => !expanded)}>
+                     {isReadmeExpanded ? "收起说明" : "展开说明"}
+                   </Button>
+                 )}
+               </>
              )}
            </Card>
 
-          <Card className="!p-4 sm:!p-8 !gap-0">
+          <Card className="!p-4 md:!p-8 !gap-0">
              <Text weight="semibold" size={500}>其他信息</Text>
              <Divider className="my-3" />
              {manifest ? (
@@ -523,7 +554,7 @@ export default function PluginDetailPage() {
 
          {/* 右侧 发现更多 */}
          <aside className="flex flex-col gap-5">
-          <Card className="!p-4 sm:!p-8">
+          <Card className="!p-4 md:!p-8">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>评分和评价</Text>
                {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
@@ -570,10 +601,10 @@ export default function PluginDetailPage() {
                </>
              )}
            </Card>
-          <Card className="!p-4 sm:!p-8 !gap-0">
+          <Card className="!p-4 md:!p-8 !gap-0">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>发现更多</Text>
-               {sectionTags.length > 0 && <Link href={`/search?q=${encodeURIComponent(sectionTags[0])}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
+               {sectionTags.length > 0 && <Link href={`/search?q=${encodeURIComponent(sectionTags[0].name || sectionTags[0])}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
              </div>
              <Divider className="my-3" />
              <PluginList plugins={otherPlugins} loading={isLoadingOtherPlugins} />

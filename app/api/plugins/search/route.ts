@@ -24,12 +24,11 @@ export async function GET(req: Request) {
       const name = String(m.name || '').toLowerCase();
       const desc = String(m.description || '').toLowerCase();
       const author = String(m.author || '').toLowerCase();
-      const tagIds: string[] = Array.isArray(m.tags) ? m.tags : [];
-      
-      // 简化版本，直接使用tagIds而不查询翻译
-      const tagTexts = tagIds;
+      const tagList: { id: string; name: string }[] = Array.isArray(m.tags) ? m.tags : [];
+      const tagIds = tagList.map(t => t.id);
+      const tagNames = tagList.map(t => t.name);
 
-      const haystack = [id, name, desc, author, ...tagIds.map(t=>t.toLowerCase()), ...tagTexts].join('\n');
+      const haystack = [id, name, desc, author, ...tagIds, ...tagNames].join('\n');
       return haystack.includes(q) && (!tag || tagIds.includes(tag));
     }).map((item: any) => ({
       ...item,

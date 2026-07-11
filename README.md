@@ -62,6 +62,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | `offset` | number | 偏移量 | `0` |
 | `page` | number | 页码 | `1` |
 | `per_page` | number | 每页数量 | `20` |
+| `sort` | string | 排序方式：`latest` / `name` / `rating` / `downloads` | `latest` |
 
 ---
 
@@ -93,7 +94,7 @@ curl "http://localhost:3000/api/banners?name=home"
     "slides": [
       {
         "title": "Class Widgets",
-        "subtitle": "桌面小组件引擎",
+        "subtitle": "使用ClassWidgets SDK",
         "image": "https://raw.githubusercontent.com/Class-Widgets/plugin-plaza/main/ClassWidgets2/banners/images/home.png"
       }
     ]
@@ -120,19 +121,17 @@ curl "http://localhost:3000/api/plugins?page=1&per_page=20"
   "ok": true,
   "data": [
     {
-      "id": "chatgpt-widget",
-      "name": "ChatGPT Widget",
-      "description": "在桌面使用 ChatGPT",
-      "url": "https://github.com/owner/chatgpt-widget",
-      "repo_url": "https://github.com/owner/chatgpt-widget",
-      "repository": "https://github.com/owner/chatgpt-widget",
+      "id": "com.classwidgets.example-plugin",
+      "name": "示例插件",
+      "description": "在桌面使用示例插件",
+      "repo_url": "https://github.com/owner/example-plugin",
       "branch": "main",
       "version": "1.2.0",
       "api_version": "0.6.0",
       "readme": "README.md",
       "icon": "icon.png",
       "status": "published",
-      "tags": ["ai", "tools"],
+      "tags": [{"id": "tag_id", "name": "标签名称"}, {"id": "tools", "name": "工具"}],
       "author": "owner",
       "created": "2026-01-01T00:00:00.000Z",
       "updated": "2026-07-01T12:00:00.000Z",
@@ -169,17 +168,17 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget"
 {
   "ok": true,
   "data": {
-    "id": "chatgpt-widget",
-    "name": "ChatGPT Widget",
-    "description": "在桌面使用 ChatGPT",
-    "repo_url": "https://github.com/owner/chatgpt-widget",
+    "id": "com.classwidgets.example-plugin",
+    "name": "示例插件",
+    "description": "教学示例描述内容",
+    "repo_url": "https://github.com/Class-Widgets/plugin-template-v2",
     "branch": "main",
     "version": "1.2.0",
     "api_version": "0.6.0",
     "readme": "README.md",
     "icon": "icon.png",
     "status": "published",
-    "tags": ["ai"],
+    "tags": [{"id": "tag_id", "name": "标签类型"}],
     "author": "owner",
     "resources": {
       "icon": "/api/plugins/chatgpt-widget/resources/icon",
@@ -201,7 +200,10 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget"
 | 参数名 | 类型 | 描述 | 默认值 |
 |-------|------|------|--------|
 | `q` | string | 搜索关键词 | `""` |
-| `locale` | string | 语言环境（用于标签文本映射） | `undefined` |
+| `tag` | string | 按标签 ID 过滤 | `""` |
+| `sort` | string | 排序方式：`relevance` / `latest` / `name` / `rating` / `downloads` | `relevance` |
+| `page` | number | 页码 | `1` |
+| `per_page` | number | 每页数量 | `12` |
 
 **调用示例**
 
@@ -216,11 +218,17 @@ curl "http://localhost:3000/api/plugins/search?q=ai"
   "ok": true,
   "data": [
     {
-      "id": "chatgpt-widget",
-      "name": "ChatGPT Widget",
-      "tags": ["ai"]
+      "id": "com.classwidgets.example-plugin",
+      "name": "示例插件",
+      "tags": [{"id": "tag_id", "name": "标签类型"}]
     }
-  ]
+  ],
+  "meta": {
+    "total": 42,
+    "page": 1,
+    "per_page": 12,
+    "total_pages": 4
+  }
 }
 ```
 
@@ -228,8 +236,8 @@ curl "http://localhost:3000/api/plugins/search?q=ai"
 
 `GET /api/plugins/tags`
 
-- 不传 `ids` / `tag`：返回标签字典 `{ tagId: displayName }`。
-- 传入 `ids` / `tag`（逗号分隔）：返回匹配的标签数组。
+- 不传 `ids` / `tag`：返回全部标签数组 `[{id, name}]`。
+- 传入 `ids` / `tag`（逗号分隔）：返回匹配的标签子集。
 
 **参数**
 
@@ -237,38 +245,24 @@ curl "http://localhost:3000/api/plugins/search?q=ai"
 |-------|------|------|--------|
 | `ids` | string | 标签 ID 列表，逗号分隔 | `""` |
 | `tag` | string | 同 `ids`（别名） | `""` |
-| `mode` | string | 匹配模式：`any` / `all` | `any` |
-| `no-mirror` | boolean | 是否禁用镜像 | `false` |
 
 **调用示例**
 
 ```bash
-# 获取全部标签字典
+# 获取全部标签
 curl "http://localhost:3000/api/plugins/tags"
 
 # 查询指定标签
 curl "http://localhost:3000/api/plugins/tags?ids=ai,tools"
 ```
 
-**返回范例（字典）**
-
-```json
-{
-  "ok": true,
-  "data": {
-    "ai": "人工智能",
-    "tools": "工具"
-  }
-}
-```
-
-**返回范例（数组）**
+**返回范例**
 
 ```json
 {
   "ok": true,
   "data": [
-    { "id": "ai", "name": "人工智能" },
+    { "id": "tag_id", "name": "标签名称" },
     { "id": "tools", "name": "工具" }
   ]
 }
@@ -286,6 +280,8 @@ curl "http://localhost:3000/api/plugins/tags?ids=ai,tools"
 |-------|------|------|--------|
 | `tag` | string | 标签 ID 列表，逗号分隔 | 必填 |
 | `mode` | string | 匹配模式：`any` / `all` | `any` |
+| `sort` | string | 排序方式：`latest` / `name` / `rating` / `downloads` | `latest` |
+| `no-mirror` | boolean | 是否禁用镜像服务 | `false` |
 | `limit` / `offset` / `page` / `per_page` | number | 分页参数 | 见通用参数 |
 
 **调用示例**
@@ -300,7 +296,7 @@ curl "http://localhost:3000/api/plugins/category?tag=ai,tools&mode=any&page=1&pe
 {
   "ok": true,
   "data": [
-    { "id": "chatgpt-widget", "name": "ChatGPT Widget", "tags": ["ai"] }
+    { "id": "com.classwidgets.example-plugin", "name": "示例插件", "tags": [{"id": "tag_id", "name": "标签类型"}] }
   ],
   "meta": {
     "total": 12,
@@ -309,7 +305,7 @@ curl "http://localhost:3000/api/plugins/category?tag=ai,tools&mode=any&page=1&pe
     "total_pages": 2,
     "limit": 10,
     "offset": 0,
-    "tag": "ai,tools",
+    "tag": "tag, tools",
     "mode": "any"
   }
 }
@@ -326,6 +322,7 @@ curl "http://localhost:3000/api/plugins/category?tag=ai,tools&mode=any&page=1&pe
 | 参数名 | 类型 | 描述 | 默认值 |
 |-------|------|------|--------|
 | `limit` | number | 返回数量 | `10` |
+| `no-mirror` | boolean | 是否禁用镜像服务 | `false` |
 
 **调用示例**
 
@@ -349,7 +346,7 @@ curl "http://localhost:3000/api/plugins/latest?limit=5"
 
 `GET /api/plugins/popular`
 
-按下载量倒序返回插件。当前数据库未含下载量字段时按 `0` 处理。
+按评分（评级数量优先，再按平均分）倒序返回插件。
 
 **参数**
 
@@ -416,7 +413,7 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/manifest"
 curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/readme"
 ```
 
-### 9.4 插件发布包
+### 9.4 获取插件发布包
 
 `GET /api/plugins/[pluginId]/resources/release`
 
@@ -427,18 +424,18 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/readme"
 | `format` | string | 发布包格式：`zip` / `cwplugin` | `cwplugin` |
 
 ```bash
-curl -L "http://localhost:3000/api/plugins/chatgpt-widget/resources/release?format=zip" -o chatgpt-widget.zip
+curl -L "http://localhost:3000/api/plugins/com.classwidgets.example-plugin/resources/release?format=zip" -o example-plugin.zip
 ```
 
 ## 10. 发布 / 更新插件 API
 
 `POST /api/plugins/[pluginId]/publish`
 
-本端点代理 Supabase Edge Function `publish-plugin`，调用方无需使用长链接 `https://<project>.supabase.co/functions/v1/publish-plugin`，直接通过本站相对路径即可发布或更新自己的插件。
+<!-- 本端点代理 Supabase Edge Function `publish-plugin`，调用方无需使用长链接 `https://<project>.supabase.co/functions/v1/publish-plugin`，直接通过本站相对路径即可发布或更新自己的插件。 -->
 
 **鉴权**
 
-- 请求头 `X-CWPT-Token` 必填：发布令牌明文（形如 `cwpt_...`），由控制台生成并仅展示一次。
+- 请求头 `X-CWPT-Token` 必填：发布令牌明文（形如 `cwpt_...`），由插件广场控制台生成并仅展示一次。
 - 路径中的 `[pluginId]` 会作为 `X-CWPT-Plugin-Id` 头自动转发给 Edge Function，调用方无需再单独传该头。
 - Edge Function 会校验令牌归属与插件 owner 是否一致。
 
@@ -486,11 +483,11 @@ curl -X POST "http://localhost:3000/api/plugins/chatgpt-widget/publish" \
     "scopePluginId": "chatgpt-widget"
   },
   "plugin": {
-    "id": "chatgpt-widget",
+    "id": "com.classwidgets.example-plugin",
     "updated": {
-      "name": "ChatGPT Widget",
-      "description": "在桌面使用 ChatGPT",
-      "repo_url": "https://github.com/owner/chatgpt-widget",
+      "name": "示例插件",
+      "description": "在桌面使用示例插件",
+      "repo_url": "https://github.com/owner/example-plugin",
       "branch": "main",
       "version": "1.3.0",
       "api_version": "0.6.0",
@@ -525,7 +522,7 @@ curl -X POST "http://localhost:3000/api/plugins/chatgpt-widget/publish" \
 {
   "ok": false,
   "error": "Token owner does not match plugin owner",
-  "debug": { "step": "verify-token", "pluginIdSent": "chatgpt-widget" }
+  "debug": { "step": "verify-token", "pluginIdSent": "com.classwidgets.example-plugin" }
 }
 ```
 
@@ -571,16 +568,16 @@ curl "http://localhost:3000/api/authors/550e8400-e29b-41d4-a716-446655440000"
     },
     "plugins": [
       {
-        "id": "chatgpt-widget",
-        "name": "ChatGPT Widget",
-        "description": "在桌面使用 ChatGPT",
-        "repo_url": "https://github.com/owner/chatgpt-widget",
+        "id": "com.classwidgets.example-plugin",
+        "name": "示例插件",
+        "description": "在桌面使用示例插件",
+        "repo_url": "https://github.com/owner/example-plugin",
         "branch": "main",
         "version": "1.3.0",
         "api_version": "0.6.0",
         "icon": "icon.png",
         "status": "published",
-        "tags": ["ai", "widget"],
+        "tags": [{"id": "tag_id", "name": "标签名称"}, {"id": "widget", "name": "Widget"}],
         "created_at": "2025-09-01T10:00:00.000Z",
         "updated_at": "2026-07-10T08:00:00.000Z"
       }

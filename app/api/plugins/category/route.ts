@@ -31,7 +31,7 @@ export async function GET(req: Request) {
         
         // 过滤包含指定标签的插件，并附加评分数据
         let filteredManifests: any[] = manifests.filter((manifest: any) => {
-            const manifestTags = Array.isArray(manifest.tags) ? manifest.tags : [];
+            const manifestTags: string[] = Array.isArray(manifest.tags) ? manifest.tags.map((t: any) => t.id || t) : [];
             
             if (mode === 'all') {
                 // 所有标签都必须匹配

@@ -67,7 +67,7 @@ export default function StoreHome() {
     return tags
       .map((tag) => ({
         tag,
-        plugins: plugins.filter((plugin) => Array.isArray(plugin?.tags) && plugin.tags.includes(tag.name)),
+        plugins: plugins.filter((plugin) => Array.isArray(plugin?.tags) && (plugin.tags as any[]).some((t) => t.name === tag.name)),
       }))
       .filter((item) => item.plugins.length > 0)
       .sort((a, b) => b.plugins.length - a.plugins.length)

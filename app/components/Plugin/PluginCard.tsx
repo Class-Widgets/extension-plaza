@@ -61,6 +61,7 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
   const ratingCount = Number(plugin?.rating_count ?? 0);
   const hasRating = ratingCount > 0;
   const tags = Array.isArray(plugin?.tags) ? plugin.tags.filter(Boolean).slice(0, 2) : [];
+  const tagNames = tags.map((t: any) => t.name ?? t).join(" | ");
 
   return (
     <Card appearance="filled" className={cardClass} style={{ boxShadow: "none" }} role="link" tabIndex={0} onClick={goDetail} onKeyDown={onKeyDown}>
@@ -108,7 +109,7 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
                   <>
                     <span>|</span>
                     <Text size={200} className="text-gray-400" style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {tags.join(" | ")}
+                      {tagNames}
                     </Text>
                   </>
                 )}

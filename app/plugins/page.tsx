@@ -34,9 +34,7 @@ export default function PluginsPage() {
     url.searchParams.set("page", String(page));
     url.searchParams.set("per_page", "12");
     url.searchParams.set("sort", sort);
-    if (activeTag) {
-      url.searchParams.set("tag", activeTag);
-    }
+    if (activeTag) url.searchParams.set("tag", activeTag);
     fetch(url.toString())
       .then(async (r) => {
         if (!r.ok) {
