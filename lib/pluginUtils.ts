@@ -1,10 +1,101 @@
 import fs from "fs";
 import path from "path";
+import { supabase } from "@/lib/supabase";
 
 // GitHub存储库配置
 const GITHUB_REPO = "https://github.com/Class-Widgets/plugin-plaza";
 const GITHUB_BRANCH = "main";
 const GITHUB_API_BASE = "https://raw.githubusercontent.com/Class-Widgets/plugin-plaza/main";
+
+type PluginRow = {
+    id: string;
+    name: string;
+    description: string | null;
+    repo_url: string;
+    branch: string;
+    version: string;
+    api_version: string | null;
+    readme: string;
+    icon: string;
+    status: string;
+    owner_id: string;
+    created_at: string;
+    updated_at: string;
+    cw_plugin_item_tags?: Array<{
+        cw_plugin_tags?: { name: string } | { name: string }[] | null;
+    }>;
+};
+
+function normalizePluginRow(row: PluginRow, displayName?: string | null) {
+    const tags = (row.cw_plugin_item_tags || [])
+        .map((item) => Array.isArray(item.cw_plugin_tags) ? item.cw_plugin_tags[0]?.name : item.cw_plugin_tags?.name)
+        .filter((name): name is string => Boolean(name));
+
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description || "",
+        url: row.repo_url,
+        repo_url: row.repo_url,
+        repository: row.repo_url,
+        branch: row.branch || "main",
+        version: row.version || "1.0.0",
+        api_version: row.api_version || undefined,
+        readme: row.readme || "README.md",
+        icon: row.icon || "icon.png",
+        status: row.status,
+        tags,
+        author: displayName || row.owner_id || "",
+        owner_id: row.owner_id,
+        created: row.created_at,
+        updated: row.updated_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    };
+}
+
+function pluginSelect() {
+    return `
+        id,
+        name,
+        description,
+        repo_url,
+        branch,
+        version,
+        api_version,
+        readme,
+        icon,
+        status,
+        owner_id,
+        created_at,
+        updated_at,
+        cw_plugin_item_tags(
+            cw_plugin_tags(name)
+        )
+    `;
+}
+
+/** 批量查询 profiles 中指定用户的 display_name */
+async function fetchDisplayNames(ownerIds: string[]): Promise<Record<string, string>> {
+    const ids = [...new Set(ownerIds.filter(Boolean))];
+    if (ids.length === 0) return {};
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', ids);
+
+    if (error) {
+        console.warn('fetchDisplayNames:', error.message);
+        return {};
+    }
+
+    const map: Record<string, string> = {};
+    for (const row of data ?? []) {
+        if (row.display_name) map[row.id] = row.display_name;
+    }
+    return map;
+}
 
 export function getManifest(pluginId: string) {
     const pluginPath = path.join(process.cwd(), "manifests", `${pluginId}.json`);
@@ -39,8 +130,7 @@ export async function getAllManifests(): Promise<any[]> {
 
 /** 读取标签字典，支持值为字符串或多语言对象 */
 export function getTagsStore(): Record<string, string | Record<string, string>> {
-    // 迁移后：根目录 tags.json
-    const tagsPath = path.join(process.cwd(), 'tags.json');
+    const tagsPath = path.join(process.cwd(), 'app', 'data', 'tags.json');
     if (!fs.existsSync(tagsPath)) return {};
     try {
         return JSON.parse(fs.readFileSync(tagsPath, 'utf-8'));
@@ -82,6 +172,49 @@ export async function getTagText(tagId: string, locale?: string): Promise<string
         if (locale && v[locale]) return v[locale];
         return v['en'] || v['zh-CN'] || Object.values(v)[0] || tagId;
     }
+}
+
+/**
+ * 从 GitHub Releases API 获取仓库的总下载量（所有 release 的 asset download_count 之和）。
+ * 带 30 分钟内存缓存，避免超出未认证的速率限制（60 req/h）。
+ */
+const downloadsCache: Record<string, { count: number; timestamp: number }> = {};
+const DOWNLOADS_CACHE_TTL = 30 * 60 * 1000; // 30 分钟
+
+export async function getPluginDownloads(repoUrl: string): Promise<number> {
+  // 检查缓存
+  const cached = downloadsCache[repoUrl];
+  if (cached && Date.now() - cached.timestamp < DOWNLOADS_CACHE_TTL) {
+    return cached.count;
+  }
+
+  try {
+    const { owner, repo } = parseGitHubRepo(repoUrl);
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`;
+
+    const res = await fetch(apiUrl, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'extension-plaza/1.0' },
+      // 30 秒超时，避免一直等待
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) {
+      console.warn(`getPluginDownloads(${repoUrl}): GitHub API returned ${res.status}`);
+      return 0;
+    }
+
+    const releases: any[] = await res.json();
+    const total = releases.reduce((sum, release) => {
+      const assets: any[] = release.assets ?? [];
+      return sum + assets.reduce((s, a) => s + (a.download_count ?? 0), 0);
+    }, 0);
+
+    downloadsCache[repoUrl] = { count: total, timestamp: Date.now() };
+    return total;
+  } catch (err) {
+    console.warn(`getPluginDownloads(${repoUrl}): ${err}`);
+    return 0;
+  }
 }
 
 /**
@@ -228,22 +361,22 @@ export async function getBannerFromGitHub(name: string = 'home', noMirror: boole
  * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
 export async function getManifestFromGitHub(pluginId: string, noMirror: boolean = false) {
-    const manifestUrl = `${GITHUB_API_BASE}/ClassWidgets2/plugins/manifest/${pluginId}.json`;
-    console.log(`Fetching manifest from: ${manifestUrl}`);
-    
-    try {
-        const response = await fetch(manifestUrl);
-        if (!response.ok) {
-            throw new Error(`${pluginId} 插件不存在: HTTP ${response.status}`);
-        }
-        
-        const manifest = await response.json();
-        console.log(`Successfully fetched manifest for ${pluginId}`);
-        return manifest;
-    } catch (error) {
-        console.error(`Error fetching manifest from GitHub:`, error);
-        throw error;
+    void noMirror;
+
+    const { data, error } = await supabase
+        .schema('cw')
+        .from('cw_plugins')
+        .select(pluginSelect())
+        .eq('id', pluginId)
+        .single();
+
+    if (error || !data) {
+        throw new Error(`${pluginId} 插件不存在`);
     }
+
+    const row = data as unknown as PluginRow;
+    const nameMap = await fetchDisplayNames([row.owner_id]);
+    return normalizePluginRow(row, nameMap[row.owner_id]);
 }
 
 /**
@@ -251,32 +384,23 @@ export async function getManifestFromGitHub(pluginId: string, noMirror: boolean 
  * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
  */
 export async function getAllManifestsFromGitHub(noMirror: boolean = false) {
-    try {
-        // 直接从index.json文件获取插件列表
-        const indexUrl = `${GITHUB_API_BASE}/ClassWidgets2/plugins/index.json`;
-        console.log(`Fetching plugin index from: ${indexUrl}`);
-        
-        // 从GitHub获取索引文件
-        const response = await fetch(indexUrl);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to fetch plugin index: ${response.statusText} - ${await response.text()}`);
-        }
-        
-        // 解析索引文件
-        const indexData = await response.json();
-        console.log(`Successfully fetched plugin index with ${indexData.plugins.length} plugins`);
-        
-        // 提取插件列表并返回
-        const plugins = indexData.plugins || [];
-        console.log(`Extracted ${plugins.length} plugins from index`);
-        
-        return plugins;
-    } catch (error) {
-        console.error('Error fetching plugins from GitHub:', error);
-        // 返回空数组
-        return [];
+    void noMirror;
+
+    const { data, error } = await supabase
+        .schema('cw')
+        .from('cw_plugins')
+        .select(pluginSelect())
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        throw error;
     }
+
+    const rows = (data || []) as unknown as PluginRow[];
+    const ownerIds = rows.map(r => r.owner_id);
+    const nameMap = await fetchDisplayNames(ownerIds);
+
+    return rows.map(row => normalizePluginRow(row, nameMap[row.owner_id]));
 }
 
 /**
@@ -314,34 +438,20 @@ export function processBannerImages(bannerData: any) {
     return bannerData;
 }
 
-/**
- * 从GitHub存储库获取Tags数据
- */
-/**
- * 从GitHub存储库获取标签数据
- * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
- */
 export async function getTagsFromGitHub(noMirror: boolean = false) {
-    let tagsUrl = `${GITHUB_API_BASE}/ClassWidgets2/tags.json`;
-    
-    // 如果noMirror为true，使用pickMirrorFor跳过镜像选择
-    if (noMirror) {
-        // noMirror为true时，仍然使用原始URL不变
-    } else {
-        // 正常情况下，可以在这里添加镜像选择逻辑
-        // 但由于我们已经构建了直接GitHub URL，这里不需要额外处理
+    void noMirror;
+
+    const { data, error } = await supabase
+        .schema('cw')
+        .from('cw_plugin_tags')
+        .select('name')
+        .order('name', { ascending: true });
+
+    if (error) {
+        throw error;
     }
-    
-    try {
-        const response = await fetch(tagsUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch tags: ${response.statusText}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error(`Error fetching tags from GitHub:`, error);
-        // 回退到本地方法
-        return getTagsStore();
-    }
+
+    const localTags = getTagsStore();
+
+    return Object.fromEntries((data || []).map((tag) => [tag.name, localTags[tag.name] || tag.name]));
 }

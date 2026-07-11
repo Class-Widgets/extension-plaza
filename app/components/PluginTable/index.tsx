@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { Table, TableHeader, TableRow, TableCell, TableBody, Text } from "@fluentui/react-components";
+import { Text, Spinner } from "@fluentui/react-components";
+import ErrorState from "@/app/components/Common/ErrorState";
 
 export interface Column {
   key: string;
@@ -8,7 +9,50 @@ export interface Column {
   width?: string | number;
 }
 
-export default function PluginTable({ columns, data, ariaLabel }: { columns: Column[]; data: any[]; ariaLabel?: string }) {
+export interface PluginTableProps {
+  columns: Column[];
+  data: any[];
+  ariaLabel?: string;
+  loading?: boolean;
+  error?: { status?: number; message?: string } | null;
+  onRetry?: () => void;
+}
+
+export default function PluginTable({ columns, data, ariaLabel, loading, error, onRetry }: PluginTableProps) {
+  if (loading) {
+    return (
+      <section aria-label={ariaLabel ?? "插件表格"}>
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Spinner size="large" />
+          <Text size={300} className="text-gray-500">加载中...</Text>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section aria-label={ariaLabel ?? "插件表格"}>
+        <ErrorState
+          status={error.status}
+          message={error.message}
+          onRetry={onRetry}
+        />
+      </section>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <section aria-label={ariaLabel ?? "插件表格"}>
+        <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+          <Text size={400}>暂无插件</Text>
+          <Text size={200} className="mt-2">当前没有可用的插件</Text>
+        </div>
+      </section>
+    );
+  }
+
   const tableRef = React.useRef<HTMLDivElement | null>(null);
 
   const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {

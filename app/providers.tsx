@@ -87,7 +87,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeContext.Provider value={{ isDarkMode, mode, setMode: setModePersist, cycleMode }}>
             <SSRProvider>
                 <FluentProvider theme={currentTheme} className={"transition-colors duration-200"}>
-                    <div className="min-h-screen bg-gray-200/50 dark:bg-transparent">
+                    <div className="min-h-screen flex flex-col bg-gray-200/50 dark:bg-transparent">
                         {children}
                     </div>
                 </FluentProvider>

@@ -2,11 +2,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem } from "@fluentui/react-components";
+import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner } from "@fluentui/react-components";
 import { marked } from "marked";
 import PluginList from "@/app/components/Plugin/PluginList";
 import DOMPurify from "dompurify";
-// import tagsMap from "@/app/data/tags.json"; // 已迁移到GitHub，通过API获取
 import {
   TagRegular,
   InfoRegular,
@@ -19,10 +18,10 @@ import {
   ShareRegular
 } from "@fluentui/react-icons";
 
+
 // README 渲染（支持 GitHub 风格 admonition + 占位符解析）
 const preprocessReadme = (md: string, manifest?: any) => {
   let text = md;
-  // 从 manifest 提取 owner/repo
   let owner: string | null = null;
   let repo: string | null = null;
   try {
@@ -36,7 +35,6 @@ const preprocessReadme = (md: string, manifest?: any) => {
   } catch {}
   const repoUrl = manifest?.url || "";
 
-  // 常用占位符 -> 实际网页内容（Markdown 片段）
   if (repoUrl) {
     text = text.replace(/\$\{__web_page_repo__\}/g, `[${repoUrl}](${repoUrl})`);
   }
@@ -44,10 +42,8 @@ const preprocessReadme = (md: string, manifest?: any) => {
     text = text.replace(/\$\{__web_page_stars_badge__\}/g, `![Stars](https://img.shields.io/github/stars/${owner}/${repo}?style=for-the-badge&color=orange&label=%E6%98%9F%E6%A0%87)`);
     text = text.replace(/\$\{__web_page_downloads_badge__\}/g, `![Downloads](https://img.shields.io/github/downloads/${owner}/${repo}/total.svg?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=green&style=for-the-badge)`);
   }
-  // 许可证徽章（如需更复杂可从 manifest 读取）
   text = text.replace(/\$\{__web_page_license_badge__\}/g, `![License](https://img.shields.io/badge/license-MIT-blue.svg?label=%E5%BC%80%E6%BA%90%E8%AE%B8%E5%8F%AF%E8%AF%81&style=for-the-badge)`);
 
-  // 通用占位符：链接与徽章
   text = text.replace(/\$\{__web_page_link:(https?:\/\/[^}]+)__\}/g, (_m, url) => `[${url}](${url})`);
   text = text.replace(/\$\{__web_page_badge:(https?:\/\/[^}]+)__\}/g, (_m, url) => `![badge](${url})`);
 
@@ -57,7 +53,6 @@ const preprocessReadme = (md: string, manifest?: any) => {
 const renderReadmeHtml = (md: string, manifest?: any) => {
   const pre = preprocessReadme(md, manifest);
   const raw = marked.parse(pre) as string;
-  // GitHub 风格 Admonition： [!NOTE]、[!TIP]、[!IMPORTANT]、[!WARNING]、[!CAUTION]
   const replaced = raw.replace(/<blockquote>\s*<p>\[!([A-Z]+)\]<\/p>([\s\S]*?)<\/blockquote>/g, (m, type, inner) => {
     const t = String(type).toLowerCase();
     const titleMap: Record<string, string> = {
@@ -102,6 +97,8 @@ export default function PluginDetailPage() {
   const [releaseDate, setReleaseDate] = React.useState<string | null>(null);
   const [isLoadingReleaseDate, setIsLoadingReleaseDate] = React.useState(true);
   const [tagsMap, setTagsMap] = React.useState<Record<string, any>>({});
+  const [manifestError, setManifestError] = React.useState<{ status?: number; message?: string } | null>(null);
+  const [manifestLoaded, setManifestLoaded] = React.useState(false);
 
   const [iconSrc, setIconSrc] = React.useState<string>(`/api/plugins/${pluginId}/resources/icon`);
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=zip`, [pluginId]);
@@ -120,24 +117,49 @@ export default function PluginDetailPage() {
     return null;
   }, [manifest]);
 
-  React.useEffect(() => {
-    // 加载 manifest
+  const loadManifest = React.useCallback(() => {
+    setManifestLoaded(false);
+    setManifestError(null);
     fetch(`/api/plugins/${pluginId}/resources/manifest`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((m) => setManifest(m))
-      .catch(() => setManifest(null));
+      .then(async (r) => {
+        if (!r.ok) {
+          let detail = "";
+          try {
+            const body = await r.json();
+            detail = body?.error || "";
+          } catch {
+            /* noop */
+          }
+          throw { status: r.status, message: detail || r.statusText || "请求失败" };
+        }
+        return r.json();
+      })
+      .then((m) => {
+        setManifest(m);
+        setManifestError(null);
+        setManifestLoaded(true);
+      })
+      .catch((e) => {
+        setManifest(null);
+        setManifestError({
+          status: e?.status,
+          message: e?.message || "网络异常，请检查连接后重试",
+        });
+        setManifestLoaded(true);
+      });
+  }, [pluginId]);
 
-    // 加载 Readme 原文（Markdown）
+  React.useEffect(() => {
+    loadManifest();
+
     fetch(`/api/plugins/${pluginId}/resources/readme`)
       .then((r) => (r.ok ? r.text() : Promise.reject()))
       .then((text) => setReadme(text))
       .catch(() => setReadme("# 暂无说明\n当前插件未提供 README 内容。"));
 
-    // 加载 tags 数据
     fetch('/api/plugins/tags')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((response) => {
-        // 确保提取正确的数据部分
         if (response && response.ok && response.data) {
           setTagsMap(response.data);
         } else {
@@ -145,10 +167,9 @@ export default function PluginDetailPage() {
         }
       })
       .catch(() => setTagsMap({}));
-  }, [pluginId]);
+  }, [pluginId, loadManifest]);
 
   React.useEffect(() => {
-    // 右侧同分区“发现更多”
     (async () => {
       setIsLoadingOtherPlugins(true);
       try {
@@ -168,7 +189,6 @@ export default function PluginDetailPage() {
   }, [pluginId, manifest]);
 
   React.useEffect(() => {
-    // GitHub Release 最新更新时间
     (async () => {
       try {
         if (!manifest?.url) { setIsLoadingReleaseDate(false); return; }
@@ -186,33 +206,17 @@ export default function PluginDetailPage() {
     })();
   }, [manifest]);
 
-  const authorUrl = React.useMemo(() => {
-    try {
-      if (!manifest?.url) return null;
-      const u = new URL(manifest.url);
-      if (u.hostname !== "github.com") return manifest.url;
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (parts.length >= 1) return `${u.protocol}//${u.hostname}/${parts[0]}`;
-      return manifest.url;
-    } catch {
-      return null;
-    }
-  }, [manifest]);
-
   const sectionTags = React.useMemo(() => (Array.isArray(manifest?.tags) ? manifest?.tags : []), [manifest]);
 
-  // 动态更新页面标题
   React.useEffect(() => {
     if (manifest?.name) {
       document.title = `${manifest.name} - Class Widgets 插件广场(测试)`;
     }
   }, [manifest]);
-  
-  // 获取标签名称的函数，现在在组件内部定义，可以访问 tagsMap
+
   const getTagName = React.useCallback((id?: string) => {
     if (!id) return "";
     const tag = tagsMap[id];
-    // API返回的数据使用zh_CN和en_US键
     return tag?.["zh_CN"] ?? tag?.["en_US"] ?? id;
   }, [tagsMap]);
 
@@ -239,9 +243,9 @@ export default function PluginDetailPage() {
             <>
               <Text weight="semibold" size={700} className="truncate">{manifest.name}</Text>
               <div className="text-sm space-y-1">
-                {authorUrl && (
+                {manifest.owner_id && (
                   <div>
-                    <Link href={authorUrl} target="_blank" className="text-blue-600 dark:text-blue-400 hover:underline">{manifest.author || "未知"}</Link>
+                    <Link href={`/authors/${manifest.owner_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">{manifest.author || manifest.owner_id}</Link>
                   </div>
                 )}
                 {sectionTags.length > 0 && (
@@ -254,7 +258,6 @@ export default function PluginDetailPage() {
               </div>
               <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{manifest.description}</div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-2 pt-2">
-                {/* 下载按钮（SplitButton） */}
                 <div className="flex-1 sm:flex-none">
                   {manifest && releasePageUrl ? (
                       <Menu positioning="below-end">
@@ -297,9 +300,8 @@ export default function PluginDetailPage() {
                       </Link>
                   )}
                 </div>
-                {/* 分享按钮 */}
-                <Button 
-                  appearance="secondary" 
+                <Button
+                  appearance="secondary"
                   icon={<ShareRegular />}
                   onClick={() => {
                     if (navigator.share) {
@@ -314,43 +316,43 @@ export default function PluginDetailPage() {
                 />
               </div>
             </>
-          ) : (
+          ) : manifestError ? (
             <div className="flex-1">
-              <Skeleton>
-                <SkeletonItem style={{ width: 280, height: 24 }} />
-                <div className="h-2" />
-                <SkeletonItem style={{ width: 220, height: 16 }} />
-                <div className="h-2" />
-                <SkeletonItem style={{ width: 360, height: 16 }} />
-              </Skeleton>
+              <Card className="!p-4 sm:!p-6 !gap-2" style={{ boxShadow: "none" }}>
+                <Text weight="semibold" size={500} style={{ color: "var(--colorPaletteRedForeground1)" }}>
+                  {manifestError.status ? `加载失败 (${manifestError.status})` : "加载失败"}
+                </Text>
+                <Text size={300} className="text-gray-500 dark:text-gray-400">
+                  {manifestError.message}
+                </Text>
+                <div className="pt-2">
+                  <Button appearance="subtle" onClick={loadManifest}>重试</Button>
+                </div>
+              </Card>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center py-8">
+              <Spinner size="large" />
             </div>
           )}
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-15 gap-5 mt-12">
+      {manifest && (<div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] gap-5 mt-12">
         {/* 主体左侧 说明 + 其他信息 */}
-        <div className="xl:col-span-10 space-y-4">
+        <div className="space-y-4">
           <Card className="!p-4 sm:!p-8 !gap-0">
              <Text weight="semibold" size={500}>说明</Text>
              <Divider className="my-3" />
              {!readme ? (
-               <Skeleton>
-                 <SkeletonItem style={{ width: "100%", height: 20 }} />
-                 <div className="h-2" />
-                 <SkeletonItem style={{ width: "90%", height: 20 }} />
-                 <div className="h-2" />
-                 <SkeletonItem style={{ width: "95%", height: 20 }} />
-                 <div className="h-2" />
-                 <SkeletonItem style={{ width: "80%", height: 20 }} />
-                 <div className="h-2" />
-                 <SkeletonItem style={{ width: "60%", height: 20 }} />
-               </Skeleton>
+               <div className="flex flex-col items-center justify-center py-12 gap-3">
+                 <Spinner size="large" />
+               </div>
              ) : (
                <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: renderReadmeHtml(readme, manifest) }} />
              )}
            </Card>
- 
+
           <Card className="!p-4 sm:!p-8 !gap-0">
              <Text weight="semibold" size={500}>其他信息</Text>
              <Divider className="my-3" />
@@ -405,43 +407,24 @@ export default function PluginDetailPage() {
                    </div>
                  </div>
                </div>
-             ) : (
-               <Skeleton>
-                 <div className="space-y-3">
-                   <SkeletonItem style={{ width: "100%", height: 120 }} />
-                   <SkeletonItem style={{ width: "100%", height: 120 }} />
-                   <SkeletonItem style={{ width: "100%", height: 120 }} />
-                 </div>
-               </Skeleton>
-             )}
+             ) : null}
            </Card>
+
+          
          </div>
- 
+
          {/* 右侧 发现更多 */}
-         <aside className="xl:col-span-5">
+         <aside>
           <Card className="!p-4 sm:!p-8 !gap-0">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>发现更多</Text>
                {sectionTags.length > 0 && <Link href={`/search?q=${encodeURIComponent(sectionTags[0])}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
              </div>
              <Divider className="my-3" />
-             {isLoadingOtherPlugins ? (
-               <Skeleton>
-                 <div className="space-y-3">
-                   <SkeletonItem style={{ width: "100%", height: 72 }} />
-                   <SkeletonItem style={{ width: "100%", height: 72 }} />
-                   <SkeletonItem style={{ width: "100%", height: 72 }} />
-                 </div>
-               </Skeleton>
-
-            ) : otherPlugins.length === 0 ? (
-              <div className="text-sm text-gray-500 text-center py-8">暂无推荐</div>
-             ) : (
-               <PluginList plugins={otherPlugins} />
-             )}
+             <PluginList plugins={otherPlugins} loading={isLoadingOtherPlugins} />
            </Card>
          </aside>
-      </div>
+      </div>)}
     </div>
   );
 }

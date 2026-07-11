@@ -34,7 +34,7 @@ body {
   backdrop-filter: blur(12px) saturate(120%);
   background: rgba(255, 255, 255, 0.65);
 }
-.dark .fluent-acrylic {
+.tw-dark .fluent-acrylic {
   background: rgba(32, 32, 32, 0.55);
 }
 

@@ -1,106 +1,166 @@
-  "use client";
+"use client";
+
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Button,
+  SearchBox,
   Text,
-  Menu,
-  MenuTrigger,
-  MenuPopover,
-  MenuList,
-  MenuItem,
-  Divider,
-  InteractionTag,
-  InteractionTagPrimary,
 } from "@fluentui/react-components";
 import PluginGrid from "@/app/components/Plugin/PluginGrid";
-import PluginCard from "@/app/components/Plugin/PluginCard";
+import Pagination from "@/app/components/Common/Pagination";
+import EmptyState from "@/app/components/Common/EmptyState";
+import FilterToolbar from "@/app/components/Common/FilterToolbar";
+
+type TagItem = { id: string; name: string };
+
+const sortLabels: Record<string, string> = {
+  relevance: "相关性",
+  latest: "最新发布",
+  name: "名称排序",
+};
 
 export default function SearchClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const query = searchParams.get("q") || "";
-  const [category, setCategory] = React.useState<"plugins" | "themes">(
-    "plugins"
-  );
-  const [loading, setLoading] = React.useState(true);
+  const [inputValue, setInputValue] = React.useState(query);
   const [plugins, setPlugins] = React.useState<any[]>([]);
+  const [tags, setTags] = React.useState<TagItem[]>([]);
+  const [activeTag, setActiveTag] = React.useState("");
+  const [sort, setSort] = React.useState("relevance");
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<{ status?: number; message?: string } | null>(null);
 
   React.useEffect(() => {
-    setLoading(true);
-    // Simulate API call
-    fetch(`/api/plugins/search?q=${query}`)
-      .then((r) => r.json())
-      .then((json) => {
-        setPlugins(Array.isArray(json.data) ? json.data : []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setPlugins([]);
-        setLoading(false);
-      });
+    setInputValue(query);
+    setActiveTag("");
+    setPage(1);
   }, [query]);
 
+  React.useEffect(() => {
+    fetch("/api/plugins/tags")
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((json) => {
+        const data = json?.data;
+        const list = Array.isArray(data)
+          ? data.map((tag: any) => ({ id: String(tag.id ?? tag.name), name: String(tag.name ?? tag.id) }))
+          : [];
+        setTags(list);
+      })
+      .catch(() => setTags([]));
+  }, []);
+
+  React.useEffect(() => {
+    if (!query.trim()) {
+      setPlugins([]);
+      setTotal(0);
+      setTotalPages(1);
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const url = new URL("/api/plugins/search", window.location.origin);
+    url.searchParams.set("q", query);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("per_page", "12");
+    url.searchParams.set("sort", sort);
+    if (activeTag) url.searchParams.set("tag", activeTag);
+
+    setLoading(true);
+    setError(null);
+    fetch(url, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw { status: response.status, message: body?.error || response.statusText || "请求失败" };
+        }
+        return response.json();
+      })
+      .then((json) => {
+        if (json?.ok === false) throw { status: json.status, message: json.error || "接口返回错误" };
+        setPlugins(Array.isArray(json?.data) ? json.data : []);
+        setTotal(json?.meta?.total || 0);
+        setTotalPages(json?.meta?.total_pages || 1);
+      })
+      .catch((reason) => {
+        if (reason?.name === "AbortError") return;
+        setPlugins([]);
+        setTotal(0);
+        setTotalPages(1);
+        setError({ status: reason?.status, message: reason?.message || "网络异常，请检查连接后重试" });
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [activeTag, page, query, sort]);
+
+  const submitSearch = () => {
+    const nextQuery = inputValue.trim();
+    router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
+  };
+
+  const selectTag = (tagId: string) => {
+    setActiveTag(tagId);
+    setPage(1);
+  };
+
+  const updateSort = (nextSort: string) => {
+    setSort(nextSort);
+    setPage(1);
+  };
+
   return (
-    <div className="max-w-6xl min-h-screen mx-auto px-4 py-8">
-      <Text as="h1" className="!text-3xl !font-semibold">
-       "{query}" 的结果
-      </Text>
-
-      <div className="flex items-center gap-4 mt-3 mb-3">
-        <InteractionTag
-          appearance={category === "plugins" ? "brand" : "filled"}
-          onClick={() => setCategory("plugins")}
-        >
-          <InteractionTagPrimary>插件</InteractionTagPrimary>
-        </InteractionTag>
-        <InteractionTag
-          appearance={category === "themes" ? "brand" : "filled"}
-          onClick={() => setCategory("themes")}
-        >
-          <InteractionTagPrimary>主题</InteractionTagPrimary>
-        </InteractionTag>
-
-        <div className="ml-auto">
-          <Menu>
-            <MenuTrigger disableButtonEnhancement>
-              {/*<Button icon={<FilterRegular />}>筛选器</Button>*/}
-            </MenuTrigger>
-            <MenuPopover>
-              <MenuList>
-                <MenuItem>选项 1</MenuItem>
-                <MenuItem>选项 2</MenuItem>
-              </MenuList>
-            </MenuPopover>
-          </Menu>
+    <section className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
+        <Text as="h1" size={700} weight="semibold">搜索插件</Text>
+        <div className="flex gap-2">
+          <SearchBox
+            aria-label="搜索插件"
+            placeholder="搜索插件、作者、描述或标签"
+            value={inputValue}
+            onChange={(_, data) => setInputValue(data.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitSearch();
+            }}
+            size="large"
+          />
+          <Button appearance="primary" onClick={submitSearch}>搜索</Button>
         </div>
       </div>
 
-      <Divider className="mb-6" />
-
-      {category === "plugins" ? (
+      {query ? (
         <>
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[...Array(8)].map((_, i) => (
-                <PluginCard key={i} plugin={null} isLoading={true} />
-              ))}
-            </div>
-          ) : plugins.length > 0 ? (
-            <PluginGrid plugins={plugins} />
-          ) : (
-            <div className="text-center py-10">
-              <Text as="p" className="text-xl text-gray-500">
-                没有找到与 "{query}" 相关的插件。
-              </Text>
-            </div>
-          )}
+          <div className="flex flex-col gap-2">
+            <Text size={400} weight="semibold">“{query}”</Text>
+            <Text size={300}>找到 {total} 个结果</Text>
+          </div>
+
+          <FilterToolbar
+            ariaLabel="搜索结果筛选"
+            tags={tags}
+            activeTag={activeTag}
+            onTagChange={selectTag}
+            sort={sort}
+            sortOptions={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))}
+            onSortChange={updateSort}
+          />
+
+          <div className="flex flex-col gap-6">
+            <PluginGrid plugins={plugins} loading={loading} error={error} onRetry={() => setPage((current) => current)} />
+            {!loading && !error && plugins.length > 0 && <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />}
+            {!loading && !error && plugins.length === 0 && <EmptyState message="没有找到匹配的插件" />}
+          </div>
         </>
       ) : (
-        <div className="text-center py-10">
-          <Text as="p" className="text-xl text-gray-500">
-            主题功能正在建设中，敬请期待！
-          </Text>
-        </div>
+        <EmptyState message="输入关键词以搜索插件" />
       )}
-    </div>
+    </section>
   );
 }

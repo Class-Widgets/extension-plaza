@@ -1,17 +1,18 @@
 "use client";
-import { Text } from "@fluentui/react-components";
-import NextLink from "next/link";
+import { Button, Card, Text } from "@fluentui/react-components";
 
 export default function Section({ title, moreHref, children }: { title: string; moreHref?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-4">
+    <Card appearance="filled" size="large">
       <div className="flex items-center justify-between">
         <Text weight="semibold" size={400}>{title}</Text>
         {moreHref ? (
-          <NextLink href={moreHref} className="text-sm text-blue-600 hover:underline">查看更多</NextLink>
+          <Button as="a" href={moreHref} appearance="subtle" size="small">
+            查看更多
+          </Button>
         ) : null}
       </div>
       {children}
-    </section>
+    </Card>
   );
 }

@@ -5,15 +5,15 @@
 
 /* 行内代码更可读 */
 .prose code { padding: 0.15em 0.35em; border-radius: 4px; background: rgba(0,0,0,0.05); }
-.dark .prose code { background: rgba(255,255,255,0.08); }
+.tw-dark .prose code { background: rgba(255,255,255,0.08); }
 
 /* 代码块：统一为黑底 */
 .prose pre { padding: 12px 14px; border-radius: 8px; color: #1e1f22; background: #f8fafc; overflow: auto; }
-.dark .prose pre { padding: 12px 14px; border-radius: 8px; background: #1e1f22; overflow: auto; }
+.tw-dark .prose pre { padding: 12px 14px; border-radius: 8px; background: #1e1f22; overflow: auto; }
 
 /* 普通引用块（非 admonition） */
 .prose blockquote { margin: 12px 0; padding: 10px 14px; border-left: 3px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #334155; }
-.dark .prose blockquote { border-left-color: #64748b; background: rgba(255,255,255,0.05); color: #cbd5e1; }
+.tw-dark .prose blockquote { border-left-color: #64748b; background: rgba(255,255,255,0.05); color: #cbd5e1; }
 
 /* Admonition 容器与标题 */
 .prose .admonition { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--adm-border); border-radius: 8px; background: var(--adm-bg); }
