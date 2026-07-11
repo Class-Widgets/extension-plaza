@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getManifestFromGitHub } from "@/lib/pluginUtils";
+import { getPluginManifest } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
-    const manifest = await getManifestFromGitHub(pluginId);
+    const manifest = await getPluginManifest(pluginId);
 
     let iconUrl = manifest.icon;
     if (!iconUrl.startsWith("http")) {

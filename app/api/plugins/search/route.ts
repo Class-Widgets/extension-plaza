@@ -1,6 +1,6 @@
 // app/api/plugins/search/route.ts
 import { NextResponse } from 'next/server';
-import { getAllManifestsFromGitHub } from '@/lib/pluginUtils';
+import { getPluginManifests } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
   try {
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const page = Math.max(1, Number.parseInt(url.searchParams.get('page') || '1', 10) || 1);
     const perPage = Math.min(50, Math.max(1, Number.parseInt(url.searchParams.get('per_page') || '12', 10) || 12));
 
-    const manifests = await getAllManifestsFromGitHub();
+    const manifests = await getPluginManifests();
     if (!q) {
       return NextResponse.json({ ok: true, data: [], meta: { total: 0, page, per_page: perPage, total_pages: 1 } });
     }

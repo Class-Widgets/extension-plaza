@@ -2,11 +2,6 @@ import fs from "fs";
 import path from "path";
 import { supabase } from "@/lib/supabase";
 
-// GitHub存储库配置
-const GITHUB_REPO = "https://github.com/Class-Widgets/plugin-plaza";
-const GITHUB_BRANCH = "main";
-const GITHUB_API_BASE = "https://raw.githubusercontent.com/Class-Widgets/plugin-plaza/main";
-
 type PluginRow = {
     id: string;
     name: string;
@@ -24,6 +19,13 @@ type PluginRow = {
     cw_plugin_item_tags?: Array<{
         cw_plugin_tags?: { name: string } | { name: string }[] | null;
     }>;
+};
+
+type BannerSlide = {
+    image: string;
+    title: string;
+    desc: string;
+    pluginId?: string;
 };
 
 function normalizePluginRow(row: PluginRow, displayName?: string | null) {
@@ -142,7 +144,7 @@ export function getTagsStore(): Record<string, string | Record<string, string>> 
 /** 根据 tagId 映射展示文本（可选 locale） */
 export async function getTagText(tagId: string, locale?: string): Promise<string> {
     try {
-        const store = await getTagsFromGitHub();
+        const store = await getPluginTags();
         const v = store[tagId];
         if (!v) return tagId;
         if (typeof v === 'string') return v;
@@ -164,7 +166,7 @@ export async function getTagText(tagId: string, locale?: string): Promise<string
         // 默认优先级：zh_CN, en_US, 其他
         return v['zh_CN'] || v['en_US'] || Object.values(v)[0] || tagId;
     } catch (error) {
-        console.warn('Failed to fetch tags from GitHub, using local fallback:', error);
+        console.warn('Failed to fetch tags from Supabase, using local fallback:', error);
         const store = getTagsStore();
         const v = store[tagId];
         if (!v) return tagId;
@@ -172,49 +174,6 @@ export async function getTagText(tagId: string, locale?: string): Promise<string
         if (locale && v[locale]) return v[locale];
         return v['en'] || v['zh-CN'] || Object.values(v)[0] || tagId;
     }
-}
-
-/**
- * 从 GitHub Releases API 获取仓库的总下载量（所有 release 的 asset download_count 之和）。
- * 带 30 分钟内存缓存，避免超出未认证的速率限制（60 req/h）。
- */
-const downloadsCache: Record<string, { count: number; timestamp: number }> = {};
-const DOWNLOADS_CACHE_TTL = 30 * 60 * 1000; // 30 分钟
-
-export async function getPluginDownloads(repoUrl: string): Promise<number> {
-  // 检查缓存
-  const cached = downloadsCache[repoUrl];
-  if (cached && Date.now() - cached.timestamp < DOWNLOADS_CACHE_TTL) {
-    return cached.count;
-  }
-
-  try {
-    const { owner, repo } = parseGitHubRepo(repoUrl);
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`;
-
-    const res = await fetch(apiUrl, {
-      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'extension-plaza/1.0' },
-      // 30 秒超时，避免一直等待
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!res.ok) {
-      console.warn(`getPluginDownloads(${repoUrl}): GitHub API returned ${res.status}`);
-      return 0;
-    }
-
-    const releases: any[] = await res.json();
-    const total = releases.reduce((sum, release) => {
-      const assets: any[] = release.assets ?? [];
-      return sum + assets.reduce((s, a) => s + (a.download_count ?? 0), 0);
-    }, 0);
-
-    downloadsCache[repoUrl] = { count: total, timestamp: Date.now() };
-    return total;
-  } catch (err) {
-    console.warn(`getPluginDownloads(${repoUrl}): ${err}`);
-    return 0;
-  }
 }
 
 /**
@@ -301,66 +260,30 @@ export async function processReadmeImages(
     return processedReadme;
 }
 
-/**
- * 从GitHub存储库获取Banner数据
- * @param name Banner名称，默认为'home'
- * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
- */
-export async function getBannerFromGitHub(name: string = 'home', noMirror: boolean = false) {
-    const bannerUrl = `${GITHUB_API_BASE}/ClassWidgets2/banners/${name}.json`;
-    
-    try {
-        const response = await fetch(bannerUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch banner: ${response.statusText}`);
-        }
-        
-        const bannerData = await response.json();
-        
-        // 处理图片路径，将相对路径转换为绝对路径
-        if (bannerData.slides && Array.isArray(bannerData.slides)) {
-            bannerData.slides = bannerData.slides.map((slide: any) => {
-                let imagePath = slide.image;
-                // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
-                if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
-                    // 如果以 /images/ 开头，直接替换为banners/images/
-                    if (imagePath.startsWith('/images/')) {
-                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
-                    }
-                    // 如果以 images/ 开头，添加前导斜杠和banners目录
-                    else if (imagePath.startsWith('images/')) {
-                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
-                    }
-                    // 其他相对路径，假设相对于banners目录
-                    else if (!imagePath.startsWith('/')) {
-                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
-                    }
-                    
-                    // 如果noMirror为true，不使用镜像，直接返回原始URL
-                    if (noMirror) {
-                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/images/${imagePath.replace('/images/', '')}`;
-                    }
-                }
-                return {
-                    ...slide,
-                    image: imagePath
-                };
-            });
-        }
-        
-        return bannerData;
-    } catch (error) {
-        console.error(`Error fetching banner from GitHub:`, error);
-        throw error;
+export async function getBanner(name: string = 'home', noMirror: boolean = false) {
+    void name;
+    void noMirror;
+
+    const plugins = await getPluginManifests();
+    const slides: BannerSlide[] = plugins.slice(0, 2).map((plugin: any) => ({
+        image: `/api/plugins/${plugin.id}/resources/icon`,
+        title: plugin.name,
+        desc: plugin.description || '来自 Supabase 插件库的精选插件',
+        pluginId: plugin.id,
+    }));
+
+    if (slides.length === 0) {
+        slides.push({
+            image: '/BannerWelcome.png',
+            title: '欢迎来到插件广场',
+            desc: '精选扩展与主题，提升你的浏览体验。',
+        });
     }
+
+    return { slides };
 }
 
-/**
- * 从GitHub存储库获取单个Plugin Manifest
- * @param pluginId 插件ID
- * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
- */
-export async function getManifestFromGitHub(pluginId: string, noMirror: boolean = false) {
+export async function getPluginManifest(pluginId: string, noMirror: boolean = false) {
     void noMirror;
 
     const { data, error } = await supabase
@@ -368,6 +291,7 @@ export async function getManifestFromGitHub(pluginId: string, noMirror: boolean 
         .from('cw_plugins')
         .select(pluginSelect())
         .eq('id', pluginId)
+        .eq('status', 'published')
         .single();
 
     if (error || !data) {
@@ -379,17 +303,14 @@ export async function getManifestFromGitHub(pluginId: string, noMirror: boolean 
     return normalizePluginRow(row, nameMap[row.owner_id]);
 }
 
-/**
- * 从GitHub存储库获取所有Plugin Manifests
- * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
- */
-export async function getAllManifestsFromGitHub(noMirror: boolean = false) {
+export async function getPluginManifests(noMirror: boolean = false) {
     void noMirror;
 
     const { data, error } = await supabase
         .schema('cw')
         .from('cw_plugins')
         .select(pluginSelect())
+        .eq('status', 'published')
         .order('updated_at', { ascending: false });
 
     if (error) {
@@ -403,9 +324,35 @@ export async function getAllManifestsFromGitHub(noMirror: boolean = false) {
     return rows.map(row => normalizePluginRow(row, nameMap[row.owner_id]));
 }
 
-/**
- * 处理Banner图片路径，将相对路径转换为GitHub绝对路径
- */
+export async function getPluginRatingStats(pluginIds: string[]) {
+    const ids = [...new Set(pluginIds.filter(Boolean))];
+    if (ids.length === 0) return {};
+
+    const { data, error } = await supabase
+        .schema('cw')
+        .from('cw_plugins_rating')
+        .select('plugin_id, rating')
+        .in('plugin_id', ids);
+
+    if (error) {
+        throw error;
+    }
+
+    const stats: Record<string, { rating_count: number; rating_average: number }> = {};
+    for (const row of data ?? []) {
+        const current = stats[row.plugin_id] ?? { rating_count: 0, rating_average: 0 };
+        current.rating_count += 1;
+        current.rating_average += Number(row.rating || 0);
+        stats[row.plugin_id] = current;
+    }
+
+    for (const id of Object.keys(stats)) {
+        stats[id].rating_average = stats[id].rating_count > 0 ? stats[id].rating_average / stats[id].rating_count : 0;
+    }
+
+    return stats;
+}
+
 export function processBannerImages(bannerData: any) {
     if (!bannerData.slides || !Array.isArray(bannerData.slides)) {
         return bannerData;
@@ -415,17 +362,14 @@ export function processBannerImages(bannerData: any) {
         let imagePath = slide.image;
         // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
         if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
-            // 如果以 /images/ 开头，直接替换为banners/images/
             if (imagePath.startsWith('/images/')) {
-                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
+                imagePath = imagePath;
             }
-            // 如果以 images/ 开头，添加前导斜杠和banners目录
             else if (imagePath.startsWith('images/')) {
-                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                imagePath = `/${imagePath}`;
             }
-            // 其他相对路径，假设相对于banners目录
             else if (!imagePath.startsWith('/')) {
-                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                imagePath = `/${imagePath}`;
             }
         }
         
@@ -438,7 +382,7 @@ export function processBannerImages(bannerData: any) {
     return bannerData;
 }
 
-export async function getTagsFromGitHub(noMirror: boolean = false) {
+export async function getPluginTags(noMirror: boolean = false) {
     void noMirror;
 
     const { data, error } = await supabase

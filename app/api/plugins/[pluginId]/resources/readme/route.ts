@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getManifestFromGitHub, parseGitHubRepo, processReadmeImages } from "@/lib/pluginUtils";
+import { getPluginManifest, parseGitHubRepo, processReadmeImages } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 const readmeCache: Record<string, { content: string; timestamp: number }> = {};
@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
         });
     }
 
-    const manifest = await getManifestFromGitHub(pluginId);
+    const manifest = await getPluginManifest(pluginId);
     let readmeUrl = manifest.readme;
 
     if (!readmeUrl.startsWith("http")) {

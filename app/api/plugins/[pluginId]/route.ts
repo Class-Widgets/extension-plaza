@@ -1,12 +1,12 @@
 // app/api/plugins/[pluginId]/route.ts
 import { NextResponse } from 'next/server';
-import { getManifestFromGitHub } from '@/lib/pluginUtils';
+import { getPluginManifest } from '@/lib/pluginUtils';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     try {
         const { pluginId } = await ctx.params;
         
-        const manifest = await getManifestFromGitHub(pluginId);
+        const manifest = await getPluginManifest(pluginId);
         
         // 构建完整的插件详情响应
         const pluginDetails = {

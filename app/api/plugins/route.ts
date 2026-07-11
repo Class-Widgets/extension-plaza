@@ -1,6 +1,6 @@
 // app/api/plugins/route.ts
 import { NextResponse } from 'next/server';
-import { getAllManifestsFromGitHub } from '@/lib/pluginUtils';
+import { getPluginManifests } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
     try {
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
         const page = url.searchParams.get('page') ? parseInt(url.searchParams.get('page') || '1', 10) : 1;
         const per_page = url.searchParams.get('per_page') ? parseInt(url.searchParams.get('per_page') || '20', 10) : 20;
         
-        const manifests = await getAllManifestsFromGitHub(noMirror);
+        const manifests = await getPluginManifests(noMirror);
         
         // 计算分页参数
         let startIndex = offset;

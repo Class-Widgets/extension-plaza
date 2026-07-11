@@ -1,6 +1,6 @@
 // app/api/plugins/[pluginId]/resources/release/route.ts
 import { NextResponse } from "next/server";
-import { getManifestFromGitHub, parseGitHubRepo } from "@/lib/pluginUtils";
+import { getPluginManifest } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
@@ -13,7 +13,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
             return NextResponse.json({ error: 'Invalid format parameter. Use "zip" or "cwplugin"' }, { status: 400 });
         }
 
-        const manifest = await getManifestFromGitHub(pluginId);
+        const manifest = await getPluginManifest(pluginId);
         
         // 确保 manifest.url 以斜杠结尾，然后构建正确的 release URL
         let releaseUrl = `${manifest.url.replace(/\/$/, '')}/releases/latest/download/${manifest.id}.${format}`;

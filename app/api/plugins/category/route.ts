@@ -1,6 +1,6 @@
 // app/api/plugins/category/route.ts
 import { NextResponse } from 'next/server';
-import { getAllManifestsFromGitHub } from '@/lib/pluginUtils';
+import { getPluginManifests } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
     try {
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
         
         const queryTags = tag.split(',').map(s => s.trim()).filter(Boolean);
         
-        const manifests = await getAllManifestsFromGitHub(noMirror);
+        const manifests = await getPluginManifests(noMirror);
         
         // 过滤包含指定标签的插件
         const filteredManifests = manifests.filter((manifest: any) => {
