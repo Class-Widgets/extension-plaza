@@ -46,14 +46,17 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
     }
 
     try {
-        const res = await fetch(iconUrl);
+        const res = await fetch(iconUrl, { next: { revalidate: 86400 } });
         if (!res.ok) throw new Error(`fetch failed with status ${res.status}`);
         const arrayBuffer = await res.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
         return new NextResponse(buffer, {
             status: 200,
-            headers: { "Content-Type": "image/png" },
+            headers: {
+                "Content-Type": res.headers.get("content-type") || "image/png",
+                "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+            },
         });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });

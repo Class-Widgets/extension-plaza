@@ -21,7 +21,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
         // 移除原始 URL 的协议前缀，确保镜像 URL 格式正确
         releaseUrl = `${mirror}/${releaseUrl.replace('https://', '')}`;
 
-        return NextResponse.redirect(releaseUrl);
+        const response = NextResponse.redirect(releaseUrl);
+        response.headers.set("Cache-Control", "public, max-age=60, s-maxage=300");
+        return response;
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });
     }

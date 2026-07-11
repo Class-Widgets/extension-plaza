@@ -6,7 +6,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
 
     try {
         const manifest = await getPluginManifest(pluginId);
-        return NextResponse.json(manifest);
+        return NextResponse.json(manifest, {
+            headers: {
+                "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=900",
+            },
+        });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });
     }

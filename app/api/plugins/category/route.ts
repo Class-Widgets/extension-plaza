@@ -1,12 +1,13 @@
 // app/api/plugins/category/route.ts
 import { NextResponse } from 'next/server';
-import { getPluginManifests } from '@/lib/pluginUtils';
+import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const noMirror = url.searchParams.get('no-mirror') === 'true';
         const tag = url.searchParams.get('tag') || '';
+        const sort = url.searchParams.get('sort') || 'latest';
         const mode = (url.searchParams.get('mode') || 'any').toLowerCase(); // 'any' | 'all'
         
         // 支持两种分页方式：
@@ -25,9 +26,11 @@ export async function GET(req: Request) {
         const queryTags = tag.split(',').map(s => s.trim()).filter(Boolean);
         
         const manifests = await getPluginManifests(noMirror);
+        const ratingStats = await getPluginRatingStats(manifests.map((m: any) => m.id));
+        const downloadStats = await getPluginDownloadStats(manifests);
         
-        // 过滤包含指定标签的插件
-        const filteredManifests = manifests.filter((manifest: any) => {
+        // 过滤包含指定标签的插件，并附加评分数据
+        let filteredManifests: any[] = manifests.filter((manifest: any) => {
             const manifestTags = Array.isArray(manifest.tags) ? manifest.tags : [];
             
             if (mode === 'all') {
@@ -38,6 +41,24 @@ export async function GET(req: Request) {
                 return queryTags.some(queryTag => manifestTags.includes(queryTag));
             }
         });
+        
+        filteredManifests = filteredManifests.map((item: any) => ({
+            ...item,
+            rating_count: ratingStats[item.id]?.rating_count ?? 0,
+            rating_average: ratingStats[item.id]?.rating_average ?? 0,
+            downloads: downloadStats[item.id] ?? 0,
+        }));
+        
+        // 排序
+        if (sort === 'latest') {
+            filteredManifests.sort((a: any, b: any) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+        } else if (sort === 'name') {
+            filteredManifests.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN'));
+        } else if (sort === 'rating') {
+            filteredManifests.sort((a: any, b: any) => (b.rating_average || 0) - (a.rating_average || 0) || (b.rating_count || 0) - (a.rating_count || 0));
+        } else if (sort === 'downloads') {
+            filteredManifests.sort((a: any, b: any) => (b.downloads || 0) - (a.downloads || 0));
+        }
         
         // 计算分页参数
         let startIndex = offset;

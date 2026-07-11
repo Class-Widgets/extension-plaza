@@ -1,6 +1,6 @@
 // app/api/plugins/search/route.ts
 import { NextResponse } from 'next/server';
-import { getPluginManifests } from '@/lib/pluginUtils';
+import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
   try {
@@ -13,6 +13,8 @@ export async function GET(req: Request) {
     const perPage = Math.min(50, Math.max(1, Number.parseInt(url.searchParams.get('per_page') || '12', 10) || 12));
 
     const manifests = await getPluginManifests();
+    const ratingStats = await getPluginRatingStats(manifests.map((m: any) => m.id));
+    const downloadStats = await getPluginDownloadStats(manifests);
     if (!q) {
       return NextResponse.json({ ok: true, data: [], meta: { total: 0, page, per_page: perPage, total_pages: 1 } });
     }
@@ -29,21 +31,32 @@ export async function GET(req: Request) {
 
       const haystack = [id, name, desc, author, ...tagIds.map(t=>t.toLowerCase()), ...tagTexts].join('\n');
       return haystack.includes(q) && (!tag || tagIds.includes(tag));
-    });
+    }).map((item: any) => ({
+      ...item,
+      rating_count: ratingStats[item.id]?.rating_count ?? 0,
+      rating_average: ratingStats[item.id]?.rating_average ?? 0,
+      downloads: downloadStats[item.id] ?? 0,
+    }));
 
     if (sort === 'latest') {
       results.sort((a: any, b: any) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
     } else if (sort === 'name') {
       results.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN'));
+    } else if (sort === 'rating') {
+      results.sort((a: any, b: any) => (b.rating_average || 0) - (a.rating_average || 0) || (b.rating_count || 0) - (a.rating_count || 0));
+    } else if (sort === 'downloads') {
+      results.sort((a: any, b: any) => (b.downloads || 0) - (a.downloads || 0));
     }
 
     const total = results.length;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
     const start = (Math.min(page, totalPages) - 1) * perPage;
 
+    const pageItems = results.slice(start, start + perPage);
+
     return NextResponse.json({
       ok: true,
-      data: results.slice(start, start + perPage),
+      data: pageItems,
       meta: { total, page: Math.min(page, totalPages), per_page: perPage, total_pages: totalPages },
     });
   } catch (err) {

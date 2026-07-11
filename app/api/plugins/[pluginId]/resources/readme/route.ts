@@ -3,7 +3,11 @@ import { getPluginManifest, parseGitHubRepo, processReadmeImages } from "@/lib/p
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 const readmeCache: Record<string, { content: string; timestamp: number }> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const cacheHeaders = {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
+};
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
@@ -13,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
         return new NextResponse(cached.content, {
             status: 200,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
+            headers: cacheHeaders,
         });
     }
 
@@ -30,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
         readmeUrl = `${mirror}/${rawUrl}`;
     }
     try {
-        const res = await fetch(readmeUrl);
+        const res = await fetch(readmeUrl, { next: { revalidate: 1800 } });
         if (!res.ok) throw new Error(`fetch failed with status ${res.status}`);
         let text = await res.text();
         const branch = manifest.branch || "main"; // 确保 branch 可用
@@ -41,7 +45,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
 
         return new NextResponse(text, {
             status: 200,
-            headers: { "Content-Type": "text/plain; charset=utf-8" },
+            headers: cacheHeaders,
         });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });

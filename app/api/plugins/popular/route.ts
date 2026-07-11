@@ -1,6 +1,6 @@
 // app/api/plugins/popular/route.ts
 import { NextResponse } from 'next/server';
-import { getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
+import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
     try {
@@ -9,9 +9,10 @@ export async function GET(req: Request) {
 
         const manifests = await getPluginManifests();
         const ratingStats = await getPluginRatingStats(manifests.map((m: any) => m.id));
+        const downloadStats = await getPluginDownloadStats(manifests);
         const withStats = manifests.map((m: any) => ({
             ...m,
-            downloads: 0,
+            downloads: downloadStats[m.id] ?? 0,
             rating_count: ratingStats[m.id]?.rating_count ?? 0,
             rating_average: ratingStats[m.id]?.rating_average ?? 0,
         }));

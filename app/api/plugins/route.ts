@@ -1,11 +1,12 @@
 // app/api/plugins/route.ts
 import { NextResponse } from 'next/server';
-import { getPluginManifests } from '@/lib/pluginUtils';
+import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
 
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url);
         const noMirror = url.searchParams.get('no-mirror') === 'true';
+        const sort = url.searchParams.get('sort') || 'latest';
         
         // 支持两种分页方式：
         // 1. 传统的limit/offset
@@ -17,10 +18,31 @@ export async function GET(req: Request) {
         const per_page = url.searchParams.get('per_page') ? parseInt(url.searchParams.get('per_page') || '20', 10) : 20;
         
         const manifests = await getPluginManifests(noMirror);
+        const ratingStats = await getPluginRatingStats(manifests.map((m: any) => m.id));
+        const downloadStats = await getPluginDownloadStats(manifests);
+        
+        // 附加评分数据
+        const withRating = manifests.map((item: any) => ({
+            ...item,
+            rating_count: ratingStats[item.id]?.rating_count ?? 0,
+            rating_average: ratingStats[item.id]?.rating_average ?? 0,
+            downloads: downloadStats[item.id] ?? 0,
+        }));
+        
+        // 排序
+        if (sort === 'latest') {
+            withRating.sort((a: any, b: any) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+        } else if (sort === 'name') {
+            withRating.sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN'));
+        } else if (sort === 'rating') {
+            withRating.sort((a: any, b: any) => (b.rating_average || 0) - (a.rating_average || 0) || (b.rating_count || 0) - (a.rating_count || 0));
+        } else if (sort === 'downloads') {
+            withRating.sort((a: any, b: any) => (b.downloads || 0) - (a.downloads || 0));
+        }
         
         // 计算分页参数
         let startIndex = offset;
-        let endIndex = offset + (limit || manifests.length);
+        let endIndex = offset + (limit || withRating.length);
         
         // 如果使用page/per_page参数，则覆盖startIndex和endIndex
         if (url.searchParams.has('page') || url.searchParams.has('per_page')) {
@@ -29,8 +51,8 @@ export async function GET(req: Request) {
         }
         
         // 应用分页
-        const paginatedManifests = manifests.slice(startIndex, endIndex);
-        const total = manifests.length;
+        const paginatedManifests = withRating.slice(startIndex, endIndex);
+        const total = withRating.length;
         const currentPage = url.searchParams.has('page') ? page : Math.floor(offset / (limit || per_page)) + 1;
         const itemsPerPage = url.searchParams.has('per_page') ? per_page : (limit || per_page);
         const totalPages = Math.ceil(total / itemsPerPage);

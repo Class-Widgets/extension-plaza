@@ -2,6 +2,10 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+const cacheHeaders = {
+  'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
+};
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -20,13 +24,13 @@ export async function GET(req: Request) {
 
     const tags = Array.isArray(data) ? data : [];
     if (tagIds.length === 0) {
-      return NextResponse.json({ ok: true, data: tags });
+      return NextResponse.json({ ok: true, data: tags }, { headers: cacheHeaders });
     }
 
     return NextResponse.json({
       ok: true,
       data: tags.filter((tag) => tagIds.includes(tag.id)),
-    });
+    }, { headers: cacheHeaders });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

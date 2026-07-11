@@ -33,6 +33,9 @@ type BannerSlide = {
     pluginId?: string;
 };
 
+const downloadCache = new Map<string, { count: number; expiresAt: number }>();
+const DOWNLOAD_CACHE_TTL = 30 * 60 * 1000;
+
 function normalizePluginRow(row: PluginRow, displayName?: string | null) {
     const tags = (row.cw_plugin_item_tags || [])
         .map((item) => Array.isArray(item.cw_plugin_tags) ? item.cw_plugin_tags[0]?.name : item.cw_plugin_tags?.name)
@@ -120,6 +123,43 @@ export function parseGitHubRepo(url: string) {
     const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)(\/|$)/);
     if (!match) throw new Error("GitHub URL 格式错误");
     return { owner: match[1], repo: match[2] };
+}
+
+async function getGitHubDownloadCount(repoUrl: string): Promise<number> {
+    const cached = downloadCache.get(repoUrl);
+    if (cached && cached.expiresAt > Date.now()) return cached.count;
+
+    try {
+        const { owner, repo } = parseGitHubRepo(repoUrl);
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
+            headers: { Accept: "application/vnd.github+json" },
+            next: { revalidate: 1800 },
+        });
+        if (!response.ok) return 0;
+
+        const releases = await response.json();
+        const count = Array.isArray(releases)
+            ? releases.reduce((total, release) => total + (Array.isArray(release.assets)
+                ? release.assets.reduce((assetTotal: number, asset: { download_count?: number }) => assetTotal + (asset.download_count || 0), 0)
+                : 0), 0)
+            : 0;
+        downloadCache.set(repoUrl, { count, expiresAt: Date.now() + DOWNLOAD_CACHE_TTL });
+        return count;
+    } catch {
+        return 0;
+    }
+}
+
+export async function getPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
+    const stats: Record<string, number> = {};
+    const batches = Array.from({ length: Math.ceil(manifests.length / 4) }, (_, index) => manifests.slice(index * 4, index * 4 + 4));
+
+    for (const batch of batches) {
+        const entries = await Promise.all(batch.map(async (manifest) => [manifest.id, await getGitHubDownloadCount(manifest.repo_url || manifest.url || "")] as const));
+        for (const [id, count] of entries) stats[id] = count;
+    }
+
+    return stats;
 }
 
 /** 读取所有 manifests */
