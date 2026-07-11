@@ -98,11 +98,11 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
           />
 
           <CardFooter>
-            {showRating ? (
+            {showRating && hasRating ? (
               <div className="flex flex-wrap items-center gap-2 text-gray-400">
                 <div className="flex items-center gap-1 whitespace-nowrap">
-                  <span className="text-sm">{hasRating ? ratingAverage.toFixed(1) : "暂无评分"}</span>
-                  {hasRating && <StarFilled fontSize={12} aria-hidden="true" />}
+                  <span className="text-sm">{ratingAverage.toFixed(1)}</span>
+                  <StarFilled fontSize={12} aria-hidden="true" />
                 </div>
                 {tags.length > 0 && (
                   <>

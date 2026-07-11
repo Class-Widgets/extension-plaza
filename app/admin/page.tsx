@@ -428,7 +428,7 @@ export default function AdminPage() {
         if (requestError) {
             toastError(`插件已提交为待审核，但创建审核请求失败：${requestError.message}`);
         } else {
-            toastSuccess("插件已提交，等待 master 审核。");
+            toastSuccess("插件已提交，等待审核。");
             setForm(emptyPluginForm);
         }
 

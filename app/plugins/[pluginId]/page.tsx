@@ -345,21 +345,23 @@ export default function PluginDetailPage() {
                 )}
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300 sm:justify-start">
-                <div className="flex items-center gap-1 whitespace-nowrap" style={{ color: "var(--colorPaletteMarigoldForeground1)" }}>
-                  <span>{ratingSummary.total > 0 ? ratingSummary.average.toFixed(1) : "暂无评分"}</span>
-                  {ratingSummary.total > 0 && <StarFilled fontSize={12} aria-hidden="true" />}
-                </div>
-                <span className="text-gray-300 dark:text-gray-600">|</span>
-                <span className="whitespace-nowrap">{ratingSummary.total} 个评级</span>
-                {sectionTags.length > 0 && (
+                {ratingSummary.total > 0 && (
                   <>
-                    <span className="text-gray-300 dark:text-gray-600">|</span>
-                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start trae-browser-inspect-draggable">
-                      {sectionTags.map((tag: string) => (
-                        <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
-                      ))}
+                    <div className="flex items-center gap-1 whitespace-nowrap" style={{ color: "var(--colorPaletteMarigoldForeground1)" }}>
+                      <span>{ratingSummary.average.toFixed(1)}</span>
+                      <StarFilled fontSize={12} aria-hidden="true" />
                     </div>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                    <span className="whitespace-nowrap">{ratingSummary.total} 个评级</span>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
                   </>
+                )}
+                {sectionTags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                    {sectionTags.map((tag: string) => (
+                      <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{manifest.description}</div>
@@ -521,7 +523,7 @@ export default function PluginDetailPage() {
 
          {/* 右侧 发现更多 */}
          <aside className="flex flex-col gap-5">
-          <Card className="!p-4 sm:!p-8 gap-5">
+          <Card className="!p-4 sm:!p-8">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>评分和评价</Text>
                {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
@@ -555,7 +557,7 @@ export default function PluginDetailPage() {
                      ))}
                    </div>
                  </div>}
-                 {!ratings.some((item) => item.user_id === user?.id) && <div className="mt-6 flex items-center gap-3">
+                 {!ratings.some((item) => item.user_id === user?.id) && <div className="flex items-center gap-3">
                    <Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} />
                    <Text size={300}>你如何评价 {manifest.name}?</Text>
                  </div>}
