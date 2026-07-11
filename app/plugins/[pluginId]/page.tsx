@@ -2,9 +2,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner } from "@fluentui/react-components";
+import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner, Rating } from "@fluentui/react-components";
 import { marked } from "marked";
 import PluginList from "@/app/components/Plugin/PluginList";
+import CommentsDialog, { type PluginReview } from "@/app/components/Plugin/CommentsDialog";
+import RatingDialog from "@/app/components/Plugin/RatingDialog";
+import PluginReviewItem from "@/app/components/Plugin/PluginReviewItem";
 import DOMPurify from "dompurify";
 import {
   TagRegular,
@@ -15,8 +18,13 @@ import {
   ClockRegular,
   ArrowDownloadRegular,
   ChevronDownRegular,
-  ShareRegular
+  ShareRegular,
+  ChevronRightRegular,
+  StarFilled
 } from "@fluentui/react-icons";
+import { useAuthSession } from "@/app/components/Auth/useAuthSession";
+import AuthDialog from "@/app/components/Auth/AuthDialog";
+import { supabase } from "@/lib/supabase";
 
 
 // README 渲染（支持 GitHub 风格 admonition + 占位符解析）
@@ -99,6 +107,17 @@ export default function PluginDetailPage() {
   const [tagsMap, setTagsMap] = React.useState<Record<string, any>>({});
   const [manifestError, setManifestError] = React.useState<{ status?: number; message?: string } | null>(null);
   const [manifestLoaded, setManifestLoaded] = React.useState(false);
+  const { user } = useAuthSession();
+  const [ratings, setRatings] = React.useState<PluginReview[]>([]);
+  const [isLoadingRatings, setIsLoadingRatings] = React.useState(true);
+  const [ratingsError, setRatingsError] = React.useState<string | null>(null);
+  const [isReviewsDialogOpen, setIsReviewsDialogOpen] = React.useState(false);
+  const [isRatingDialogOpen, setIsRatingDialogOpen] = React.useState(false);
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = React.useState(false);
+  const [ratingValue, setRatingValue] = React.useState(0);
+  const [ratingComment, setRatingComment] = React.useState("");
+  const [isSubmittingRating, setIsSubmittingRating] = React.useState(false);
+  const [ratingSubmitError, setRatingSubmitError] = React.useState<string | null>(null);
 
   const [iconSrc, setIconSrc] = React.useState<string>(`/api/plugins/${pluginId}/resources/icon`);
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=zip`, [pluginId]);
@@ -161,13 +180,39 @@ export default function PluginDetailPage() {
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((response) => {
         if (response && response.ok && response.data) {
-          setTagsMap(response.data);
+          const nextTagsMap = Array.isArray(response.data)
+            ? Object.fromEntries(response.data.map((tag: any) => [tag.id, tag.name ?? tag]))
+            : response.data;
+          setTagsMap(nextTagsMap);
         } else {
           setTagsMap({});
         }
       })
       .catch(() => setTagsMap({}));
   }, [pluginId, loadManifest]);
+
+  const loadRatings = React.useCallback(async () => {
+    setIsLoadingRatings(true);
+    setRatingsError(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch(`/api/plugins/${pluginId}/comments`, {
+        headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
+      });
+      const body = await response.json();
+      if (!response.ok || !body?.ok) throw new Error(body?.error || "评论加载失败");
+      setRatings(Array.isArray(body.data) ? body.data : []);
+    } catch (error: any) {
+      setRatings([]);
+      setRatingsError(error?.message || "评论加载失败");
+    } finally {
+      setIsLoadingRatings(false);
+    }
+  }, [pluginId]);
+
+  React.useEffect(() => {
+    loadRatings();
+  }, [loadRatings]);
 
   React.useEffect(() => {
     (async () => {
@@ -217,23 +262,73 @@ export default function PluginDetailPage() {
   const getTagName = React.useCallback((id?: string) => {
     if (!id) return "";
     const tag = tagsMap[id];
-    return tag?.["zh_CN"] ?? tag?.["en_US"] ?? id;
+    if (typeof tag === "string") return tag;
+    return tag?.["zh_CN"] ?? tag?.["en_US"] ?? tag?.name ?? id;
   }, [tagsMap]);
 
+  const ratingSummary = React.useMemo(() => {
+    const total = ratings.length;
+    const average = total ? ratings.reduce((sum, item) => sum + item.rating, 0) / total : 0;
+    const distribution = [5, 4, 3, 2, 1].map((score) => ({ score, count: ratings.filter((item) => item.rating === score).length }));
+    return { total, average, distribution, commentCount: ratings.filter((item) => item.comment).length };
+  }, [ratings]);
+
+  const recentReviews = React.useMemo(() => ratings
+    .filter((item) => item.comment)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 2), [ratings]);
+
+  const openRatingDialog = (selectedRating?: number) => {
+    if (!user) {
+      setIsAuthDialogOpen(true);
+      return;
+    }
+    const ownRating = ratings.find((item) => item.user_id === user.id);
+    setRatingValue(selectedRating ?? ownRating?.rating ?? 0);
+    setRatingComment(ownRating?.comment ?? "");
+    setRatingSubmitError(null);
+    setIsRatingDialogOpen(true);
+  };
+
+  const submitRating = async () => {
+    if (!ratingValue || !user) return;
+    setIsSubmittingRating(true);
+    setRatingSubmitError(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch(`/api/plugins/${pluginId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ rating: ratingValue, comment: ratingComment }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body?.ok) throw new Error(body?.error || "提交评价失败");
+      setIsRatingDialogOpen(false);
+      await loadRatings();
+    } catch (error: any) {
+      setRatingSubmitError(error?.message || "提交评价失败");
+    } finally {
+      setIsSubmittingRating(false);
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-4 py-6 rounded-3xl overflow-hidden">
       {/* 顶部应用信息区域 */}
       <section className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="w-24 h-24 flex items-center justify-center mx-auto sm:mx-0">
           {!iconLoaded && (
             <Skeleton>
-              <SkeletonItem shape="rectangle" style={{ width: 96, height: 96, borderRadius: 12 }} />
+              <SkeletonItem shape="rectangle" style={{ width: 96, height: 96, borderRadius: 24 }} />
             </Skeleton>
           )}
           <img
             src={iconSrc}
             alt={manifest?.name || String(pluginId)}
-            className={`w-24 h-24 object-contain rounded-3xl ${iconLoaded ? "" : "hidden"}`}
+            className={`w-24 h-24 object-contain ${iconLoaded ? "" : "hidden"}`}
             onLoad={() => setIconLoaded(true)}
             onError={() => { setIconLoaded(true); setIconSrc("/images/default_plugin.png"); }}
           />
@@ -248,12 +343,23 @@ export default function PluginDetailPage() {
                     <Link href={`/authors/${manifest.owner_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">{manifest.author || manifest.owner_id}</Link>
                   </div>
                 )}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300 sm:justify-start">
+                <div className="flex items-center gap-1 whitespace-nowrap" style={{ color: "var(--colorPaletteMarigoldForeground1)" }}>
+                  <span>{ratingSummary.total > 0 ? ratingSummary.average.toFixed(1) : "暂无评分"}</span>
+                  {ratingSummary.total > 0 && <StarFilled fontSize={12} aria-hidden="true" />}
+                </div>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <span className="whitespace-nowrap">{ratingSummary.total} 个评级</span>
                 {sectionTags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-                    {sectionTags.map((tag: string) => (
-                      <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
-                    ))}
-                  </div>
+                  <>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start trae-browser-inspect-draggable">
+                      {sectionTags.map((tag: string) => (
+                        <Link key={tag} href={`/search?q=${encodeURIComponent(tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag)}</Link>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
               <div className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{manifest.description}</div>
@@ -414,7 +520,54 @@ export default function PluginDetailPage() {
          </div>
 
          {/* 右侧 发现更多 */}
-         <aside>
+         <aside className="flex flex-col gap-5">
+          <Card className="!p-4 sm:!p-8 gap-5">
+             <div className="flex items-center justify-between">
+               <Text weight="semibold" size={500}>评分和评价</Text>
+               {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
+             </div>
+             <Divider className="my-3" />
+             {isLoadingRatings ? (
+               <div className="flex justify-center py-8"><Spinner size="small" /></div>
+             ) : ratingsError ? (
+               <div className="space-y-2 py-3">
+                 <Text size={300} className="text-gray-500 dark:text-gray-400">{ratingsError}</Text>
+                 <Button size="small" appearance="subtle" onClick={loadRatings}>重试</Button>
+               </div>
+             ) : (
+               <>
+                 {ratingSummary.total > 0 && <div className="grid w-full max-w-[360px] grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-4 py-1">
+                   <div className="flex flex-col items-center justify-between self-stretch text-center">
+                     <Text weight="semibold" className="block !text-6xl !leading-none tracking-tight">{ratingSummary.average.toFixed(1)}</Text>
+                     <Text size={200} className="block text-gray-500 dark:text-gray-400">{ratingSummary.total} 个评分</Text>
+                   </div>
+                   <div className="space-y-1.5">
+                     {ratingSummary.distribution.map(({ score, count }) => (
+                       <div key={score} className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-1">
+                         <div className="flex items-center justify-end gap-1 text-xs" style={{ color: "var(--colorPaletteMarigoldForeground1)" }}>
+                           <Text size={200}>{score}</Text>
+                           <StarFilled fontSize={12} aria-label={`${score} 星`} />
+                         </div>
+                         <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: "color-mix(in srgb, var(--colorPaletteMarigoldForeground1) 22%, transparent)" }}>
+                           <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(count / ratingSummary.total) * 100}%`, backgroundColor: "var(--colorPaletteMarigoldForeground1)" }} />
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>}
+                 {!ratings.some((item) => item.user_id === user?.id) && <div className="mt-6 flex items-center gap-3">
+                   <Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} />
+                   <Text size={300}>你如何评价 {manifest.name}?</Text>
+                 </div>}
+                 {recentReviews.length > 0 && <div className="mt-5">
+                   <div className="space-y-0">
+                     {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact />)}
+                   </div>
+                 </div>}
+                 {ratingSummary.commentCount > 0 && <Button appearance="transparent" className="!mt-3 !px-0" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{ratingSummary.commentCount}）</Button>}
+               </>
+             )}
+           </Card>
           <Card className="!p-4 sm:!p-8 !gap-0">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>发现更多</Text>
@@ -425,6 +578,20 @@ export default function PluginDetailPage() {
            </Card>
          </aside>
       </div>)}
+      <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} />
+      <RatingDialog
+        open={isRatingDialogOpen}
+        pluginName={manifest?.name || "此插件"}
+        rating={ratingValue}
+        comment={ratingComment}
+        submitting={isSubmittingRating}
+        error={ratingSubmitError}
+        onOpenChange={setIsRatingDialogOpen}
+        onRatingChange={setRatingValue}
+        onCommentChange={setRatingComment}
+        onSubmit={submitRating}
+      />
+      <AuthDialog open={isAuthDialogOpen} onOpenChange={setIsAuthDialogOpen} />
     </div>
   );
 }

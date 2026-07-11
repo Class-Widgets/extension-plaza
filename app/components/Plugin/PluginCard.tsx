@@ -2,15 +2,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { Card, CardHeader, CardFooter, CardPreview, Text, Skeleton, SkeletonItem, Button } from "@fluentui/react-components";
-import { ChevronRightRegular } from "@fluentui/react-icons";
+import { ChevronRightRegular, StarFilled } from "@fluentui/react-icons";
 import { useRouter } from "next/navigation";
 
 interface PluginCardProps {
   plugin: any;
   isLoading?: boolean;
+  showRating?: boolean;
 }
 
-export default function PluginCard({ plugin, isLoading }: PluginCardProps) {
+export default function PluginCard({ plugin, isLoading, showRating = false }: PluginCardProps) {
   const hasId = !!plugin?.id;
   const router = useRouter();
 
@@ -56,11 +57,15 @@ export default function PluginCard({ plugin, isLoading }: PluginCardProps) {
   }
 
   const authorHref = plugin?.owner_id ? `/authors/${plugin.owner_id}` : null;
+  const ratingAverage = Number(plugin?.rating_average ?? 0);
+  const ratingCount = Number(plugin?.rating_count ?? 0);
+  const hasRating = ratingCount > 0;
+  const tags = Array.isArray(plugin?.tags) ? plugin.tags.filter(Boolean).slice(0, 2) : [];
 
   return (
     <Card appearance="filled" className={cardClass} style={{ boxShadow: "none" }} role="link" tabIndex={0} onClick={goDetail} onKeyDown={onKeyDown}>
       <div className="flex items-center gap-3">
-        <CardPreview className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
+        <CardPreview className="w-16 h-16 rounded-[16px] overflow-hidden flex-shrink-0 border border-gray-300 dark:border-gray-500">
           <div className="relative w-16 h-16">
             {iconLoading && (
               <Skeleton animation="wave" className="absolute inset-0">
@@ -71,7 +76,7 @@ export default function PluginCard({ plugin, isLoading }: PluginCardProps) {
             <img
               src={imgSrc}
               alt={plugin?.name ?? "icon"}
-              className="absolute inset-0 w-full h-full object-contain border border-gray-300 dark:border-gray-500 rounded-xl"
+              className="absolute inset-0 w-full h-full object-contain"
               onLoad={() => setIconLoading(false)}
               onError={() => { setImgSrc("/images/default_plugin.png"); setIconLoading(false); }}
             />
@@ -93,9 +98,26 @@ export default function PluginCard({ plugin, isLoading }: PluginCardProps) {
           />
 
           <CardFooter>
-            <Text size={200} className="text-gray-300" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-              {plugin?.description ?? plugin?.desc ?? plugin?.summary ?? ""}
-            </Text>
+            {showRating ? (
+              <div className="flex flex-wrap items-center gap-2 text-gray-400">
+                <div className="flex items-center gap-1 whitespace-nowrap">
+                  <span className="text-sm">{hasRating ? ratingAverage.toFixed(1) : "暂无评分"}</span>
+                  {hasRating && <StarFilled fontSize={12} aria-hidden="true" />}
+                </div>
+                {tags.length > 0 && (
+                  <>
+                    <span>|</span>
+                    <Text size={200} className="text-gray-400" style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {tags.join(" | ")}
+                    </Text>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Text size={200} className="text-gray-300" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                {plugin?.description ?? plugin?.desc ?? plugin?.summary ?? ""}
+              </Text>
+            )}
           </CardFooter>
         </div>
 

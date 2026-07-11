@@ -18,6 +18,8 @@ const sortLabels: Record<string, string> = {
   relevance: "相关性",
   latest: "最新发布",
   name: "名称排序",
+  rating: "评分排序",
+  downloads: "下载量排序",
 };
 
 export default function SearchClient() {
@@ -153,9 +155,8 @@ export default function SearchClient() {
           />
 
           <div className="flex flex-col gap-6">
-            <PluginGrid plugins={plugins} loading={loading} error={error} onRetry={() => setPage((current) => current)} />
+            <PluginGrid plugins={plugins} loading={loading} error={error} onRetry={() => setPage((current) => current)} showRating />
             {!loading && !error && plugins.length > 0 && <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />}
-            {!loading && !error && plugins.length === 0 && <EmptyState message="没有找到匹配的插件" />}
           </div>
         </>
       ) : (

@@ -231,10 +231,28 @@ export default function AdminPage() {
     }, [user]);
 
     const loadAverageRating = React.useCallback(async () => {
+        if (!user) {
+            setAverageRating(0);
+            return;
+        }
+
+        const { data: plugins, error: pluginsError } = await supabase
+            .schema("cw")
+            .from("cw_plugins")
+            .select("id")
+            .eq("owner_id", user.id);
+
+        if (pluginsError || !plugins || plugins.length === 0) {
+            setAverageRating(0);
+            return;
+        }
+
+        const pluginIds = plugins.map((plugin) => plugin.id);
         const { data, error } = await supabase
             .schema("cw")
             .from("cw_plugins_rating")
-            .select("rating");
+            .select("rating")
+            .in("plugin_id", pluginIds);
 
         if (error || !data || data.length === 0) {
             setAverageRating(0);
@@ -242,7 +260,7 @@ export default function AdminPage() {
             const sum = data.reduce((acc, row) => acc + row.rating, 0);
             setAverageRating(Math.round((sum / data.length) * 10) / 10);
         }
-    }, []);
+    }, [user]);
 
     const loadModeration = React.useCallback(async () => {
         if (!canModerate) return;

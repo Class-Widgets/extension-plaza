@@ -14,6 +14,8 @@ export type TagShowcaseSection = {
     description?: string;
     owner_id?: string;
     author?: string;
+    rating_average?: number;
+    rating_count?: number;
   }>;
   total: number;
 };
@@ -50,7 +52,7 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TagShowcase({ sections }: { sections: TagShowcaseSection[] }) {
+export default function TagShowcase({ sections, showRating = false }: { sections: TagShowcaseSection[]; showRating?: boolean }) {
   const styles = useStyles();
 
   if (sections.length === 0) return null;
@@ -67,7 +69,7 @@ export default function TagShowcase({ sections }: { sections: TagShowcaseSection
           </div>
           <div className={styles.grid}>
             {plugins.map((plugin) => (
-              <PluginCardRounded key={plugin.id} plugin={plugin} />
+              <PluginCardRounded key={plugin.id} plugin={plugin} showRating={showRating} />
             ))}
           </div>
         </div>

@@ -1,5 +1,8 @@
 import { mirrorSources, apiMirrorSources } from "@/mirrorSources";
 
+const mirrorCache = new Map<string, { mirror: string; expiresAt: number }>();
+const MIRROR_CACHE_TTL = 5 * 60 * 1000;
+
 async function testMirror(url: string) {
     try {
         const controller = new AbortController();
@@ -54,8 +57,15 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
         return url;
     }
     
+    const isApiUrl = url.includes("api.github.com");
+    const cacheKey = isApiUrl ? "api" : "resource";
+    const cached = mirrorCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.mirror;
+    }
+
     // 根据URL类型选择镜像源
-    const sources = url.includes("api.github.com") ? apiMirrorSources : mirrorSources;
+    const sources = isApiUrl ? apiMirrorSources : mirrorSources;
     
     // 创建测试URLs，使用实际资源URL的一部分进行测试
     // 选择一个简单的GitHub资源作为测试目标
@@ -79,5 +89,7 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
     tests.sort((a, b) => a.time - b.time);
     
     // 返回最快的镜像源
-    return tests[0].mirror;
+    const mirror = tests[0].mirror;
+    mirrorCache.set(cacheKey, { mirror, expiresAt: Date.now() + MIRROR_CACHE_TTL });
+    return mirror;
 }

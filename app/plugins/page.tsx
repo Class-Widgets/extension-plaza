@@ -9,6 +9,13 @@ import FilterToolbar from "@/app/components/Common/FilterToolbar";
 type PluginItem = Record<string, unknown>;
 type TagItem = { id: string; name: string };
 
+const sortLabels: Record<string, string> = {
+  latest: "最新发布",
+  name: "名称排序",
+  rating: "评分排序",
+  downloads: "下载量排序",
+};
+
 export default function PluginsPage() {
   const [plugins, setPlugins] = React.useState<PluginItem[]>([]);
   const [tags, setTags] = React.useState<TagItem[]>([]);
@@ -26,6 +33,7 @@ export default function PluginsPage() {
     const url = new URL(activeTag ? "/api/plugins/category" : "/api/plugins", window.location.origin);
     url.searchParams.set("page", String(page));
     url.searchParams.set("per_page", "12");
+    url.searchParams.set("sort", sort);
     if (activeTag) {
       url.searchParams.set("tag", activeTag);
     }
@@ -89,11 +97,6 @@ export default function PluginsPage() {
       .catch(() => setTags([]));
   }, []);
 
-  const visiblePlugins = React.useMemo(() => {
-    if (sort === "latest") return plugins;
-    return [...plugins].sort((a: any, b: any) => String(a.name ?? "").localeCompare(String(b.name ?? ""), "zh-CN"));
-  }, [plugins, sort]);
-
   const selectTag = (tagId: string) => {
     setActiveTag(tagId);
     setCurrentPage(1);
@@ -112,13 +115,13 @@ export default function PluginsPage() {
         activeTag={activeTag}
         onTagChange={selectTag}
         sort={sort}
-        sortOptions={[{ value: "latest", label: "默认排序" }, { value: "name", label: "名称排序" }]}
+        sortOptions={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))}
         onSortChange={setSort}
       />
 
       <div className="flex flex-col gap-6">
-        <PluginGrid plugins={visiblePlugins} loading={loading} error={error} onRetry={() => fetchPlugins(currentPage)} />
-        {!loading && !error && visiblePlugins.length > 0 && (
+        <PluginGrid plugins={plugins} loading={loading} error={error} onRetry={() => fetchPlugins(currentPage)} />
+        {!loading && !error && plugins.length > 0 && (
           <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={fetchPlugins} className="pt-2" />
         )}
       </div>

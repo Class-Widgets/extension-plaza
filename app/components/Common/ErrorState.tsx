@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, Card, Text } from "@fluentui/react-components";
+import { Button, Text } from "@fluentui/react-components";
 import { ArrowClockwiseRegular, ErrorCircleRegular } from "@fluentui/react-icons";
 
 export interface ErrorStateProps {
@@ -18,10 +18,9 @@ export default function ErrorState({ status, message, onRetry, className }: Erro
         : (status ? `服务器返回了 ${status} 状态码` : "数据获取失败，请稍后重试");
 
     return (
-        <Card
+        <div
             role="alert"
             aria-live="polite"
-            appearance="filled"
             className={`flex flex-col items-center justify-center gap-3 px-6 py-10 text-center ${className ?? ""}`}
         >
             <ErrorCircleRegular
@@ -42,6 +41,6 @@ export default function ErrorState({ status, message, onRetry, className }: Erro
                     重试
                 </Button>
             )}
-        </Card>
+        </div>
     );
 }

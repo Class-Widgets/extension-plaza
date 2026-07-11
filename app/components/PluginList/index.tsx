@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Button, Text, Card, Avatar, Spinner } from "@fluentui/react-components";
 import ErrorState from "@/app/components/Common/ErrorState";
+import EmptyState from "@/app/components/Common/EmptyState";
 
 export interface PluginItem {
   id: string;
@@ -44,10 +45,7 @@ export default function PluginList({ plugins, onSelect, loading, error, onRetry 
   if (!plugins || plugins.length === 0) {
     return (
       <section aria-label="插件列表">
-        <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
-          <Text size={400}>暂无插件</Text>
-          <Text size={200} className="mt-2">当前没有可用的插件</Text>
-        </div>
+        <EmptyState message="当前没有可用的插件" />
       </section>
     );
   }

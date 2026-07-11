@@ -86,10 +86,10 @@ export default function StoreHome() {
     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
       <Banner plugins={plugins} />
       <Section title="为你推荐" moreHref="/plugins">
-        {recommend.length > 0 ? <PluginGrid plugins={recommend} error={error} onRetry={loadPlugins} /> : <EmptyState message="暂无推荐内容" />}
+        {recommend.length > 0 ? <PluginGrid plugins={recommend} error={error} onRetry={loadPlugins} showRating /> : <EmptyState message="暂无推荐内容" />}
       </Section>
 
-      <TagShowcase sections={topTags.map(({ tag, plugins }) => ({ tag, plugins: plugins.slice(0, 8), total: plugins.length }))} />
+      <TagShowcase sections={topTags.map(({ tag, plugins }) => ({ tag, plugins: plugins.slice(0, 8), total: plugins.length }))} showRating />
     </div>
   );
 }
