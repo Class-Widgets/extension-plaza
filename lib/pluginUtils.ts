@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import { supabase } from "@/lib/supabase";
 
+// GitHub存储库配置
+const GITHUB_REPO = "https://github.com/Class-Widgets/plugin-plaza";
+const GITHUB_BRANCH = "main";
+const GITHUB_API_BASE = "https://raw.githubusercontent.com/Class-Widgets/plugin-plaza/main";
+
 type PluginRow = {
     id: string;
     name: string;
@@ -260,27 +265,58 @@ export async function processReadmeImages(
     return processedReadme;
 }
 
+/**
+ * 从GitHub存储库获取Banner数据
+ * @param name Banner名称，默认为'home'
+ * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
+ */
 export async function getBanner(name: string = 'home', noMirror: boolean = false) {
-    void name;
-    void noMirror;
+    const bannerUrl = `${GITHUB_API_BASE}/ClassWidgets2/banners/${name}.json`;
 
-    const plugins = await getPluginManifests();
-    const slides: BannerSlide[] = plugins.slice(0, 2).map((plugin: any) => ({
-        image: `/api/plugins/${plugin.id}/resources/icon`,
-        title: plugin.name,
-        desc: plugin.description || '来自 Supabase 插件库的精选插件',
-        pluginId: plugin.id,
-    }));
+    try {
+        const response = await fetch(bannerUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch banner: ${response.statusText}`);
+        }
 
-    if (slides.length === 0) {
-        slides.push({
-            image: '/BannerWelcome.png',
-            title: '欢迎来到插件广场',
-            desc: '精选扩展与主题，提升你的浏览体验。',
-        });
+        const bannerData = await response.json();
+
+        // 处理图片路径，将相对路径转换为绝对路径
+        if (bannerData.slides && Array.isArray(bannerData.slides)) {
+            bannerData.slides = bannerData.slides.map((slide: any) => {
+                let imagePath = slide.image;
+                // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
+                if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
+                    // 如果以 /images/ 开头，直接替换为banners/images/
+                    if (imagePath.startsWith('/images/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
+                    }
+                    // 如果以 images/ 开头，添加前导斜杠和banners目录
+                    else if (imagePath.startsWith('images/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                    }
+                    // 其他相对路径，假设相对于banners目录
+                    else if (!imagePath.startsWith('/')) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
+                    }
+
+                    // 如果noMirror为true，不使用镜像，直接返回原始URL
+                    if (noMirror) {
+                        imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/images/${imagePath.replace('/images/', '')}`;
+                    }
+                }
+                return {
+                    ...slide,
+                    image: imagePath
+                };
+            });
+        }
+
+        return bannerData;
+    } catch (error) {
+        console.error(`Error fetching banner from GitHub:`, error);
+        throw error;
     }
-
-    return { slides };
 }
 
 export async function getPluginManifest(pluginId: string, noMirror: boolean = false) {
@@ -353,6 +389,9 @@ export async function getPluginRatingStats(pluginIds: string[]) {
     return stats;
 }
 
+/**
+ * 处理Banner图片路径，将相对路径转换为GitHub绝对路径
+ */
 export function processBannerImages(bannerData: any) {
     if (!bannerData.slides || !Array.isArray(bannerData.slides)) {
         return bannerData;
@@ -362,14 +401,17 @@ export function processBannerImages(bannerData: any) {
         let imagePath = slide.image;
         // 如果是相对路径（不以 http:// 或 https:// 开头），转换为绝对路径
         if (!imagePath.startsWith('http://') && !imagePath.startsWith('https://')) {
+            // 如果以 /images/ 开头，直接替换为banners/images/
             if (imagePath.startsWith('/images/')) {
-                imagePath = imagePath;
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners${imagePath}`;
             }
+            // 如果以 images/ 开头，添加前导斜杠和banners目录
             else if (imagePath.startsWith('images/')) {
-                imagePath = `/${imagePath}`;
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
             }
+            // 其他相对路径，假设相对于banners目录
             else if (!imagePath.startsWith('/')) {
-                imagePath = `/${imagePath}`;
+                imagePath = `${GITHUB_API_BASE}/ClassWidgets2/banners/${imagePath}`;
             }
         }
         
