@@ -6,7 +6,7 @@ import Footer from "@/app/components/Layout/Footer";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const isAdmin = pathname?.startsWith("/admin");
+    const isAdmin = pathname?.startsWith("/console");
 
     if (isAdmin) {
         return (

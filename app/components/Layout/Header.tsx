@@ -182,7 +182,7 @@ export default function Header() {
                                                 管理 RinLit 账户
                                             </MenuItem>
                                             {canAccessConsole && (
-                                                <MenuItem icon={<Navigation24Regular />} onClick={() => router.push("/admin")}>
+                                                <MenuItem icon={<Navigation24Regular />} onClick={() => router.push("/console")}>
                                                     插件广场控制台
                                                 </MenuItem>
                                             )}
@@ -345,7 +345,7 @@ export default function Header() {
                                 {canAccessConsole && (
                                     <NavItem
                                         value="admin"
-                                        onClick={() => { router.push("/admin"); closeMobileMenu(); }}
+                                        onClick={() => { router.push("/console"); closeMobileMenu(); }}
                                         icon={<Navigation24Regular />}
                                     >
                                         插件广场控制台

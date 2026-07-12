@@ -442,18 +442,18 @@ export default function AdminPage() {
     React.useEffect(() => {
         if (authLoading || profileLoading) return;
         if (!user) {
-            router.replace("/admin/redirect/login");
+            router.replace("/console/redirect/login");
             return;
         }
         if (!canAccessConsole) {
-            router.replace("/admin/redirect/forbidden");
+            router.replace("/console/redirect/forbidden");
         }
     }, [authLoading, canAccessConsole, profileLoading, router, user]);
 
     React.useEffect(() => {
         if (authLoading || profileLoading || !user || !canAccessConsole) return;
         if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll)) {
-            router.replace("/admin/redirect/forbidden");
+            router.replace("/console/redirect/forbidden");
         }
     }, [authLoading, canAccessConsole, canManageAll, canModerate, profileLoading, router, user, view]);
 

@@ -14,7 +14,7 @@ export default function AdminLoginPage() {
     const [authOpen, setAuthOpen] = React.useState(false);
 
     React.useEffect(() => {
-        if (user) router.replace("/admin");
+        if (user) router.replace("/console");
     }, [router, user]);
 
     return (
