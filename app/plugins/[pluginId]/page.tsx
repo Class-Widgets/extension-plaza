@@ -20,7 +20,8 @@ import {
   ChevronDownRegular,
   ShareRegular,
   ChevronRightRegular,
-  StarFilled
+  StarFilled,
+  EditRegular
 } from "@fluentui/react-icons";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import AuthDialog from "@/app/components/Auth/AuthDialog";
@@ -557,7 +558,10 @@ export default function PluginDetailPage() {
           <Card className="!p-4 md:!p-8">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>评分和评价</Text>
-               {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
+               <div className="flex items-center gap-1">
+                 {ratings.some((item) => item.user_id === user?.id) && <Button appearance="subtle" icon={<EditRegular />} onClick={() => openRatingDialog()} aria-label="修改评价" />}
+                 {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
+               </div>
              </div>
              <Divider className="my-3" />
              {isLoadingRatings ? (
@@ -589,9 +593,9 @@ export default function PluginDetailPage() {
                    </div>
                  </div>}
                  {!ratings.some((item) => item.user_id === user?.id) && <div className="flex items-center gap-3">
-                   <Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} />
-                   <Text size={300}>你如何评价 {manifest.name}?</Text>
-                 </div>}
+                  <div className="flex-shrink-0"><Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} /></div>
+                  <Text size={300}>你如何评价 {manifest.name}?</Text>
+                </div>}
                  {recentReviews.length > 0 && <div className="mt-5">
                    <div className="space-y-0">
                      {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact />)}
