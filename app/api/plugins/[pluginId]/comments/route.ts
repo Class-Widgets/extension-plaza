@@ -31,7 +31,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
 
     const userIds = [...new Set((ratings ?? []).map((rating) => rating.user_id))];
     const { data: profiles, error: profilesError } = userIds.length
-      ? await requestSupabase.from('profiles').select('id, display_name').in('id', userIds)
+      ? await supabase.from('profiles').select('id, display_name').in('id', userIds)
       : { data: [], error: null };
 
     if (profilesError) {
