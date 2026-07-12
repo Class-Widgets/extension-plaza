@@ -464,14 +464,14 @@ export default function AdminPage() {
         loadTags();
         loadMyModerationRequests();
         loadAverageRating();
-    }, [loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user]);
+    }, [loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user, view]);
 
     React.useEffect(() => {
         if (!canModerate && !canManageAll && !canViewRatings) return;
         if (canModerate) loadModeration();
         if (canViewRatings) loadRatings();
         if (canManageAll) loadAllPlugins();
-    }, [canModerate, canManageAll, canViewRatings, loadAllPlugins, loadModeration, loadRatings]);
+    }, [canModerate, canManageAll, canViewRatings, loadAllPlugins, loadModeration, loadRatings, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -534,6 +534,7 @@ export default function AdminPage() {
         } else {
             toastSuccess("插件已提交，等待审核。");
             setForm(emptyPluginForm);
+            setView("myPlugins");
         }
 
         await loadMyPlugins();

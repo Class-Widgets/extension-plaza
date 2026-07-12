@@ -14,7 +14,7 @@ export function useAdminToasts() {
                 <ToastTitle>错误</ToastTitle>
                 <ToastBody>{message}</ToastBody>
             </Toast>,
-            { intent: "error", position: "top-end", timeout: 5000 },
+            { intent: "error", position: "top-end", timeout: 8000 },
         );
     }, [dispatchToast]);
 
@@ -24,7 +24,7 @@ export function useAdminToasts() {
                 <ToastTitle>成功</ToastTitle>
                 <ToastBody>{message}</ToastBody>
             </Toast>,
-            { intent: "success", position: "top-end", timeout: 3000 },
+            { intent: "success", position: "top-end", timeout: 6000 },
         );
     }, [dispatchToast]);
 

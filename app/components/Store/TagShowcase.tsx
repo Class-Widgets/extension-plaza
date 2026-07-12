@@ -49,6 +49,21 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
     overflowX: "auto",
     paddingBottom: tokens.spacingVerticalXS,
+    scrollbarWidth: "thin",
+    scrollbarColor: `${tokens.colorNeutralStrokeAccessible} transparent`,
+    "::-webkit-scrollbar": {
+      height: "6px",
+    },
+    "::-webkit-scrollbar-track": {
+      background: "transparent",
+    },
+    "::-webkit-scrollbar-thumb": {
+      background: tokens.colorNeutralStrokeAccessible,
+      borderRadius: "3px",
+    },
+    "::-webkit-scrollbar-thumb:hover": {
+      background: tokens.colorNeutralStroke1Hover,
+    },
   },
 });
 

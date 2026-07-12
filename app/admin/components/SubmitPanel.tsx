@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Button, Card, Divider, Field, Input, Text, Textarea } from "@fluentui/react-components";
 import { AddRegular } from "@fluentui/react-icons";
+import { supabase } from "@/lib/supabase";
 import type { PluginForm, TagRow } from "../types";
 import TagPickerField from "./TagPickerField";
 
@@ -43,6 +44,53 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
 
     const markTouched = (field: string) => setTouched((prev) => ({ ...prev, [field]: true }));
 
+    // 查重状态
+    const [duplicateError, setDuplicateError] = React.useState<{ id?: string; repo_url?: string }>({});
+
+    // 防抖查重：插件 ID（主键唯一）
+    React.useEffect(() => {
+        const value = form.id.trim();
+        if (!value || !PLUGIN_ID_PATTERN.test(value)) {
+            setDuplicateError((prev) => ({ ...prev, id: undefined }));
+            return;
+        }
+        const timer = setTimeout(async () => {
+            const { data } = await supabase
+                .schema("cw")
+                .from("cw_plugins")
+                .select("id")
+                .eq("id", value)
+                .maybeSingle();
+            setDuplicateError((prev) => ({
+                ...prev,
+                id: data ? "此插件 ID 已被占用" : undefined,
+            }));
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [form.id]);
+
+    // 防抖查重：仓库 URL（UNIQUE 约束）
+    React.useEffect(() => {
+        const value = form.repo_url.trim();
+        if (!value) {
+            setDuplicateError((prev) => ({ ...prev, repo_url: undefined }));
+            return;
+        }
+        const timer = setTimeout(async () => {
+            const { data } = await supabase
+                .schema("cw")
+                .from("cw_plugins")
+                .select("repo_url")
+                .eq("repo_url", value)
+                .maybeSingle();
+            setDuplicateError((prev) => ({
+                ...prev,
+                repo_url: data ? "此仓库 URL 已被使用" : undefined,
+            }));
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [form.repo_url]);
+
     const idError = touched.id && form.id.trim() && !PLUGIN_ID_PATTERN.test(form.id.trim())
         ? "格式需为小写字母、数字、点号组合，例如 com.example.plugin" : undefined;
 
@@ -54,7 +102,8 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
 
     const apiVersionError = touched.apiVersion && !form.api_version.trim() ? "API 版本不能为空" : undefined;
 
-    const disabled = loading || !form.id.trim() || !form.name.trim() || !form.repo_url.trim();
+    const hasDuplicateError = !!(duplicateError.id || duplicateError.repo_url);
+    const disabled = loading || !form.id.trim() || !form.name.trim() || !form.repo_url.trim() || hasDuplicateError;
 
     return (
         <Card className="!p-5">
@@ -66,8 +115,8 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
                 <Field
                     label="插件 ID"
                     required
-                    validationState={idError ? "error" : undefined}
-                    validationMessage={idError}
+                    validationState={idError || duplicateError.id ? "error" : undefined}
+                    validationMessage={idError || duplicateError.id}
                 >
                     <Input
                         value={form.id}
@@ -79,7 +128,7 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
                 <Field label="名称" required validationState={nameError ? "error" : undefined} validationMessage={nameError}>
                     <Input value={form.name} onChange={(_, data) => onChange("name", data.value)} onBlur={() => markTouched("name")} placeholder="插件显示名称" />
                 </Field>
-                <Field label="GitHub 仓库 URL" required validationState={urlError || urlRequiredError ? "error" : undefined} validationMessage={urlError || urlRequiredError}>
+                <Field label="GitHub 仓库 URL" required validationState={urlError || urlRequiredError || duplicateError.repo_url ? "error" : undefined} validationMessage={urlError || urlRequiredError || duplicateError.repo_url}>
                     <Input value={form.repo_url} onChange={(_, data) => onChange("repo_url", data.value)} onBlur={() => markTouched("repoUrl")} placeholder="https://github.com/user/repo" />
                 </Field>
                 <Field label="分支" required>
