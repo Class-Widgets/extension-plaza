@@ -1,4 +1,4 @@
-import type { ModerationRequest, PluginForm, PluginRow, PluginTagJoin, TagRow } from "./types";
+import type { ModerationRequest, PluginForm, PluginRatingRow, PluginRow, PluginTagJoin, TagRow } from "./types";
 
 export const moderationStatuses = ["PENDING", "APPROVED", "REJECTED", "CANCELED"];
 export const pluginStatuses = ["pending", "published", "hidden"];
@@ -45,6 +45,11 @@ export function statusAppearance(status: string): "brand" | "danger" | "importan
 export function getPluginFromRequest(request: ModerationRequest) {
     if (Array.isArray(request.cw_plugins)) return request.cw_plugins[0] ?? null;
     return request.cw_plugins ?? null;
+}
+
+export function getPluginFromRating(rating: PluginRatingRow) {
+    if (Array.isArray(rating.cw_plugins)) return rating.cw_plugins[0] ?? null;
+    return rating.cw_plugins ?? null;
 }
 
 export function normalizePluginRows(rows: unknown[]): PluginRow[] {

@@ -1,4 +1,4 @@
-export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "allPlugins";
+export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "allPlugins" | "ratings";
 export type AccountRole = "USER" | "MASTER" | "CW_MAINTAINER";
 
 export type Profile = {
@@ -63,6 +63,17 @@ export type ModerationRequest = {
     created_at: string;
     decided_at: string | null;
     cw_plugins?: PluginRow | PluginRow[] | null;
+};
+
+export type PluginRatingRow = {
+    plugin_id: string;
+    user_id: string;
+    rating: number;
+    comment: string | null;
+    created_at: string;
+    updated_at: string;
+    cw_plugins?: PluginRow | PluginRow[] | null;
+    profile?: Pick<Profile, "id" | "display_name"> | null;
 };
 
 export type PluginForm = {

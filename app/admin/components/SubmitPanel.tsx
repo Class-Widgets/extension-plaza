@@ -44,7 +44,7 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
     const markTouched = (field: string) => setTouched((prev) => ({ ...prev, [field]: true }));
 
     const idError = touched.id && form.id.trim() && !PLUGIN_ID_PATTERN.test(form.id.trim())
-        ? "格式需为小写字母、数字、点号组合，例如 cn.example.plugin" : undefined;
+        ? "格式需为小写字母、数字、点号组合，例如 com.example.plugin" : undefined;
 
     const nameError = touched.name && !form.name.trim() ? "名称不能为空" : undefined;
 
@@ -73,7 +73,7 @@ export default function SubmitPanel({ form, tags, loading, onChange, onTagChange
                         value={form.id}
                         onChange={(_, data) => onChange("id", data.value)}
                         onBlur={() => markTouched("id")}
-                        placeholder="cn.example.plugin"
+                        placeholder="com.example.plugin"
                     />
                 </Field>
                 <Field label="名称" required validationState={nameError ? "error" : undefined} validationMessage={nameError}>

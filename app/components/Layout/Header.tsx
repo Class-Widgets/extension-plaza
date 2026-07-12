@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Button, Tooltip, Text, Toolbar, TabList, Tab, SearchBox, Drawer, DrawerBody, Input, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem } from "@fluentui/react-components";
+import { Button, Tooltip, Text, Toolbar, TabList, Tab, SearchBox, Drawer, DrawerBody, Input, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem, Tag } from "@fluentui/react-components";
 import {WeatherSunny24Regular, WeatherMoon24Regular, Desktop24Regular, ArrowLeft16Regular, Navigation24Regular, Search24Regular, Dismiss24Regular, PersonCircle24Regular, SignOut24Regular} from "@fluentui/react-icons";
 import { useTheme } from "@/app/providers";
 import { useRouter, usePathname } from "next/navigation";
@@ -21,11 +21,16 @@ export default function Header() {
     const { user, signOut } = useAuthSession();
     // 所有已登录用户均可进入控制台（USER 也有开发者工作台）
     const canAccessConsole = roles.length > 0;
+    // 角色等级：数值越小等级越高
+    const roleHierarchy: Record<string, number> = { MASTER: 0, CW_MAINTAINER: 1 };
     const roleLabelMap: Record<string, string> = {
         MASTER: "管理员",
-        CW_MAINTAINER: "维护员",
+        CW_MAINTAINER: "CW 运营维护",
     };
-    const roleText = roles.map((r) => roleLabelMap[r.toUpperCase()]).filter(Boolean).join("、");
+    const sortedRoles = [...roles].sort(
+        (a, b) => (roleHierarchy[a.toUpperCase()] ?? 99) - (roleHierarchy[b.toUpperCase()] ?? 99)
+    );
+    const roleLabelsList = sortedRoles.map((r) => roleLabelMap[r.toUpperCase()]).filter(Boolean);
 
     // 登录成功（如 OAuth 回调）后自动关闭对话框
     React.useEffect(() => {
@@ -157,10 +162,12 @@ export default function Header() {
                                                     <Text size={200} truncate style={{ color: "var(--colorNeutralForeground3)" }}>
                                                         {user.email ?? displayName}
                                                     </Text>
-                                                    {roleText && (
-                                                        <Text size={100} style={{ color: "var(--colorNeutralForeground4)" }}>
-                                                            {roleText}
-                                                        </Text>
+                                                    {roleLabelsList.length > 0 && (
+                                                        <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                                            {roleLabelsList.map((label) => (
+                                                                <Tag key={label} size="extra-small" appearance="brand">{label}</Tag>
+                                                            ))}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </MenuItem>
@@ -304,10 +311,12 @@ export default function Header() {
                                         <Text size={300} truncate className="max-w-[200px]">
                                             {user.email ?? displayName}
                                         </Text>
-                                        {roleText && (
-                                            <Text size={100} style={{ color: "var(--colorNeutralForeground4)" }}>
-                                                {roleText}
-                                            </Text>
+                                        {roleLabelsList.length > 0 && (
+                                            <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                                {roleLabelsList.map((label) => (
+                                                    <Tag key={label} size="extra-small" appearance="brand">{label}</Tag>
+                                                ))}
+                                            </div>
                                         )}
                                     </div>
                                 </div>

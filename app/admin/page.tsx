@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
-    Card,
     Hamburger,
     NavCategory,
     NavCategoryItem,
@@ -25,7 +25,7 @@ import {
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import { supabase } from "@/lib/supabase";
 
-import type { AccountRole, ConsoleView, ModerationRequest, PluginForm, PluginRow, Profile, PublishToken, TagRow } from "./types";
+import type { AccountRole, ConsoleView, ModerationRequest, PluginForm, PluginRatingRow, PluginRow, Profile, PublishToken, TagRow } from "./types";
 import { createPlainToken, emptyPluginForm, normalizePluginRows, sha256Hex } from "./utils";
 import { useAdminToasts } from "./components/useAdminToasts";
 
@@ -35,6 +35,7 @@ import MyPluginsPanel from "./components/MyPluginsPanel";
 import TokensPanel from "./components/TokensPanel";
 import ModerationPanel from "./components/ModerationPanel";
 import PluginTablePanel from "./components/PluginTablePanel";
+import RatingCommentsPanel from "./components/RatingCommentsPanel";
 
 import TextDialog from "./components/dialogs/TextDialog";
 import ModerationActionDialog from "./components/dialogs/ModerationActionDialog";
@@ -42,6 +43,7 @@ import PluginDetailDialog from "./components/dialogs/PluginDetailDialog";
 import Footer from "@/app/components/Layout/Footer";
 
 export default function AdminPage() {
+    const router = useRouter();
     const { user, loading: authLoading } = useAuthSession();
     const [profile, setProfile] = React.useState<Profile | null>(null);
     const [userRoles, setUserRoles] = React.useState<AccountRole[]>([]);
@@ -52,6 +54,7 @@ export default function AdminPage() {
     const [tags, setTags] = React.useState<TagRow[]>([]);
     const [tokens, setTokens] = React.useState<PublishToken[]>([]);
     const [moderation, setModeration] = React.useState<ModerationRequest[]>([]);
+    const [ratings, setRatings] = React.useState<PluginRatingRow[]>([]);
     const [loadingData, setLoadingData] = React.useState(false);
     const { toastError, toastSuccess } = useAdminToasts();
     const [form, setForm] = React.useState<PluginForm>(emptyPluginForm);
@@ -59,6 +62,8 @@ export default function AdminPage() {
     const [moderationFilter, setModerationFilter] = React.useState("PENDING");
     const [pluginFilter, setPluginFilter] = React.useState("all");
     const [keyword, setKeyword] = React.useState("");
+    const [ratingFilter, setRatingFilter] = React.useState("all");
+    const [ratingKeyword, setRatingKeyword] = React.useState("");
     const [navOpen, setNavOpen] = React.useState(false);
     const [navType, setNavType] = React.useState<"inline" | "overlay">("inline");
     const [myModerationRequests, setMyModerationRequests] = React.useState<ModerationRequest[]>([]);
@@ -97,6 +102,8 @@ export default function AdminPage() {
     const isMaintainer = allRoles.includes("CW_MAINTAINER");
     const canModerate = isMaster || isMaintainer;
     const canManageAll = isMaster;
+    const canAccessConsole = Boolean(profile) || userRoles.length > 0;
+    const canViewRatings = canAccessConsole;
 
     const updateForm = (field: keyof PluginForm, value: string) => {
         setForm((current) => ({ ...current, [field]: value }));
@@ -351,9 +358,104 @@ export default function AdminPage() {
         setLoadingData(false);
     }, [canManageAll, keyword, pluginFilter, toastError]);
 
+    const loadRatings = React.useCallback(async () => {
+        if (!canViewRatings) return;
+        setLoadingData(true);
+
+        let query = supabase
+            .schema("cw")
+            .from("cw_plugins_rating")
+            .select(`
+                plugin_id,
+                user_id,
+                rating,
+                comment,
+                created_at,
+                updated_at,
+                cw_plugins(
+                    id,
+                    owner_id,
+                    name,
+                    description,
+                    repo_url,
+                    branch,
+                    version,
+                    api_version,
+                    readme,
+                    icon,
+                    status,
+                    created_at,
+                    updated_at,
+                    cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
+                )
+            `)
+            .order("updated_at", { ascending: false });
+
+        if (ratingFilter !== "all") {
+            query = query.eq("rating", Number(ratingFilter));
+        }
+
+        const { data, error: ratingsError } = await query;
+
+        if (ratingsError) {
+            setRatings([]);
+            toastError(ratingsError.message);
+            setLoadingData(false);
+            return;
+        }
+
+        const rows = (data || []).map((item) => {
+            const rating = item as PluginRatingRow;
+            const pluginValue = rating.cw_plugins;
+            if (Array.isArray(pluginValue)) return { ...rating, cw_plugins: normalizePluginRows(pluginValue) };
+            if (pluginValue) return { ...rating, cw_plugins: normalizePluginRows([pluginValue])[0] };
+            return rating;
+        });
+        const userIds = Array.from(new Set(rows.map((item) => item.user_id)));
+        const { data: profiles } = userIds.length
+            ? await supabase.from("profiles").select("id, display_name").in("id", userIds)
+            : { data: [] };
+        const profileMap = new Map((profiles || []).map((item) => [item.id, item]));
+        const trimmedKeyword = ratingKeyword.trim().toLowerCase();
+        const withProfiles = rows.map((item) => ({ ...item, profile: profileMap.get(item.user_id) ?? null }));
+        const filteredRows = trimmedKeyword
+            ? withProfiles.filter((item) => {
+                const pluginValue = Array.isArray(item.cw_plugins) ? item.cw_plugins[0] : item.cw_plugins;
+                return [
+                    item.plugin_id,
+                    item.user_id,
+                    item.comment ?? "",
+                    item.profile?.display_name ?? "",
+                    pluginValue?.name ?? "",
+                ].some((value) => value.toLowerCase().includes(trimmedKeyword));
+            })
+            : withProfiles;
+
+        setRatings(filteredRows);
+        setLoadingData(false);
+    }, [canViewRatings, ratingFilter, ratingKeyword, toastError]);
+
     React.useEffect(() => {
         if (!authLoading) loadProfile();
     }, [authLoading, loadProfile]);
+
+    React.useEffect(() => {
+        if (authLoading || profileLoading) return;
+        if (!user) {
+            router.replace("/admin/redirect/login");
+            return;
+        }
+        if (!canAccessConsole) {
+            router.replace("/admin/redirect/forbidden");
+        }
+    }, [authLoading, canAccessConsole, profileLoading, router, user]);
+
+    React.useEffect(() => {
+        if (authLoading || profileLoading || !user || !canAccessConsole) return;
+        if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll)) {
+            router.replace("/admin/redirect/forbidden");
+        }
+    }, [authLoading, canAccessConsole, canManageAll, canModerate, profileLoading, router, user, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -365,10 +467,11 @@ export default function AdminPage() {
     }, [loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user]);
 
     React.useEffect(() => {
-        if (!canModerate && !canManageAll) return;
+        if (!canModerate && !canManageAll && !canViewRatings) return;
         if (canModerate) loadModeration();
+        if (canViewRatings) loadRatings();
         if (canManageAll) loadAllPlugins();
-    }, [canModerate, canManageAll, loadAllPlugins, loadModeration]);
+    }, [canModerate, canManageAll, canViewRatings, loadAllPlugins, loadModeration, loadRatings]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -379,10 +482,11 @@ export default function AdminPage() {
             loadMyModerationRequests();
             loadAverageRating();
             if (canModerate) loadModeration();
+            if (canViewRatings) loadRatings();
             if (canManageAll) loadAllPlugins();
         }, 30000);
         return () => clearInterval(interval);
-    }, [user, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, loadModeration, loadAllPlugins]);
+    }, [user, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canViewRatings, loadModeration, loadRatings, loadAllPlugins]);
 
     const submitPlugin = async () => {
         if (!user) return;
@@ -673,13 +777,8 @@ export default function AdminPage() {
         return <div className="min-h-[420px] flex items-center justify-center"><Spinner label="正在检查账号信息" /></div>;
     }
 
-    if (!user) {
-        return (
-            <Card className="max-w-2xl mx-auto !p-8">
-                <Text as="h1" size={700} weight="semibold">插件广场控制台</Text>
-                <Text className="text-gray-500 dark:text-gray-400">请先登录后再提交和管理插件。</Text>
-            </Card>
-        );
+    if (!user || !canAccessConsole) {
+        return <div className="min-h-[420px] flex items-center justify-center"><Spinner label="正在跳转" /></div>;
     }
 
     const pendingRequests = moderation.filter((item) => item.status === "PENDING").length;
@@ -691,9 +790,10 @@ export default function AdminPage() {
             <NavItem icon={<AddRegular />} value="submit">提交插件</NavItem>
             <NavItem icon={<PlugConnectedRegular />} value="myPlugins">我的插件</NavItem>
             <NavItem icon={<KeyRegular />} value="tokens">发布 Token</NavItem>
+            <NavItem icon={<HomeRegular />} value="ratings">评分评论</NavItem>
             {(canModerate || canManageAll) && (
                 <NavCategory value="admin">
-                    <NavCategoryItem icon={<ShieldRegular />}>管理员</NavCategoryItem>
+                    <NavCategoryItem icon={<ShieldRegular />}>{canManageAll ? "管理员" : "CW 运营维护"}</NavCategoryItem>
                     <NavSubItemGroup>
                         {canModerate && <NavSubItem value="moderation">审核队列</NavSubItem>}
                         {canManageAll && <NavSubItem value="allPlugins">全量管理</NavSubItem>}
@@ -710,6 +810,7 @@ export default function AdminPage() {
         tokens: "发布 Token",
         moderation: "审核队列",
         allPlugins: "全量管理",
+        ratings: "评分评论",
     };
 
     return (
@@ -748,6 +849,7 @@ export default function AdminPage() {
                     {view === "myPlugins" && <MyPluginsPanel plugins={myPlugins} moderationRequests={myModerationRequests} loading={loadingData} onReload={loadMyPlugins} onOpenDetail={openDetailDialog} />}
                     {view === "tokens" && <TokensPanel tokens={tokens} plugins={myPlugins} loading={loadingData} newToken={newToken} onCreateToken={createToken} onRevokeToken={revokeToken} onReload={loadTokens} />}
                     {view === "moderation" && canModerate && <ModerationPanel items={moderation} loading={loadingData} filter={moderationFilter} onFilterChange={setModerationFilter} onReload={loadModeration} onOpenTextDialog={openTextDialog} onOpenDetailDialog={openModerationDetailDialog} />}
+                    {view === "ratings" && canViewRatings && <RatingCommentsPanel items={ratings} loading={loadingData} ratingFilter={ratingFilter} keyword={ratingKeyword} onRatingFilterChange={setRatingFilter} onKeywordChange={setRatingKeyword} onReload={loadRatings} onOpenTextDialog={openTextDialog} />}
                     {view === "allPlugins" && canManageAll && <PluginTablePanel title="全量插件管理" plugins={allPlugins} loading={loadingData} filter={pluginFilter} keyword={keyword} readonly={false} onFilterChange={setPluginFilter} onKeywordChange={setKeyword} onReload={loadAllPlugins} onStatusChange={updatePluginStatus} onOpenDetail={openDetailDialog} />}
 
                     <PluginDetailDialog
