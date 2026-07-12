@@ -18,6 +18,7 @@ export default function Header() {
     const [isMobileSearchOpen, setIsMobileSearchOpen] = React.useState(false);
     const [authOpen, setAuthOpen] = React.useState(false);
     const [roles, setRoles] = React.useState<string[]>([]);
+    const [profileDisplayName, setProfileDisplayName] = React.useState<string | null>(null);
     const { user, signOut } = useAuthSession();
     // 所有已登录用户均可进入控制台（USER 也有开发者工作台）
     const canAccessConsole = roles.length > 0;
@@ -40,19 +41,25 @@ export default function Header() {
     React.useEffect(() => {
         if (!user) {
             setRoles([]);
+            setProfileDisplayName(null);
             return;
         }
 
         let mounted = true;
         Promise.all([
-            supabase.from("profiles").select("role").eq("id", user.id).single(),
+            supabase.from("profiles").select("role, display_name").eq("id", user.id).single(),
             supabase.from("user_roles").select("role").eq("user_id", user.id),
         ]).then(([profileRes, rolesRes]) => {
             if (!mounted) return;
             const profileRole = profileRes.data?.role;
+            const profileDisplayName = profileRes.data?.display_name as string | undefined;
             const extraRoles = (rolesRes.data || []).map((r: { role: string }) => r.role);
             const all = Array.from(new Set([profileRole, ...extraRoles].filter(Boolean) as string[]));
             setRoles(all);
+            // 如果数据库中有 display_name，记录下来用于展示
+            if (profileDisplayName) {
+                setProfileDisplayName(profileDisplayName);
+            }
         });
 
         return () => {
@@ -64,9 +71,9 @@ export default function Header() {
         await signOut();
     };
 
-    // 从 user metadata 中提取展示信息
+    // 从 user metadata 或 profiles 表中提取展示信息
     const userMeta = user?.user_metadata ?? {};
-    const displayName = (userMeta.full_name as string) || (userMeta.name as string) || user?.email || "";
+    const displayName = profileDisplayName || (userMeta.full_name as string) || (userMeta.name as string) || user?.email || "";
     const avatarUrl = userMeta.avatar_url as string | undefined;
     const initial = (displayName || user?.email || "?").charAt(0).toUpperCase();
 
@@ -100,7 +107,7 @@ export default function Header() {
                                     className="w-9 h-9 object-contain"
                                 />
                                 <Text weight="bold" className="!text-[18px]">插件广场</Text>
-                                <span className="hidden min-[400px]:inline-flex rounded-full bg-yellow-400 text-black px-2 py-1 text-xs font-medium">BETA</span>
+                                <span className="inline-flex rounded-full bg-yellow-400 text-black px-2 py-1 text-xs font-medium">BETA</span>
                             </Link>
 
                             {/* 桌面端导航标签页 */}
@@ -160,7 +167,7 @@ export default function Header() {
                                             <MenuItem disabled className="!cursor-default !max-w-[260px]">
                                                 <div className="flex flex-col">
                                                     <Text size={200} truncate style={{ color: "var(--colorNeutralForeground3)" }}>
-                                                        {user.email ?? displayName}
+                                                        {displayName || user.email}
                                                     </Text>
                                                     {roleLabelsList.length > 0 && (
                                                         <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -170,6 +177,9 @@ export default function Header() {
                                                         </div>
                                                     )}
                                                 </div>
+                                            </MenuItem>
+                                            <MenuItem icon={<PersonCircle24Regular />} onClick={() => window.open("https://rinlit.cn/zh-cn/account/", "_blank")}>
+                                                管理 RinLit 账户
                                             </MenuItem>
                                             {canAccessConsole && (
                                                 <MenuItem icon={<Navigation24Regular />} onClick={() => router.push("/admin")}>
@@ -191,20 +201,22 @@ export default function Header() {
                                 />
                             )}
 
-                            {/* 主题切换 */}
-                            <Tooltip content={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`} relationship="label">
-                                <button
-                                    type="button"
-                                    aria-label="toggle theme"
-                                    onClick={cycleMode}
-                                    className="rounded-full focus:outline-none focus:ring-1 focus:ring-[var(--colorNeutralStroke2)] hover:bg-[var(--colorNeutralBackground3)]"
-                                    style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", color: "var(--colorNeutralForeground3)" }}
-                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleMode(); } }}
-                                    title={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`}
-                                >
-                                    {mode === "system" ? <Desktop24Regular style={{ width: 20, height: 20 }} /> : (isDarkMode ? <WeatherMoon24Regular style={{ width: 20, height: 20 }} /> : <WeatherSunny24Regular style={{ width: 20, height: 20 }} />)}
-                                </button>
-                            </Tooltip>
+                            {/* 主题切换 - 桌面端显示 */}
+                            <div className="hidden lg:inline-flex">
+                                <Tooltip content={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`} relationship="label">
+                                    <button
+                                        type="button"
+                                        aria-label="toggle theme"
+                                        onClick={cycleMode}
+                                        className="rounded-full focus:outline-none focus:ring-1 focus:ring-[var(--colorNeutralStroke2)] hover:bg-[var(--colorNeutralBackground3)]"
+                                        style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", color: "var(--colorNeutralForeground3)" }}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cycleMode(); } }}
+                                        title={`切换主题（当前：${mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）`}
+                                    >
+                                        {mode === "system" ? <Desktop24Regular style={{ width: 20, height: 20 }} /> : (isDarkMode ? <WeatherMoon24Regular style={{ width: 20, height: 20 }} /> : <WeatherSunny24Regular style={{ width: 20, height: 20 }} />)}
+                                    </button>
+                                </Tooltip>
+                            </div>
 
                             {/* 移动端汉堡菜单按钮 */}
                             <div className={"lg:hidden"}>
@@ -295,6 +307,16 @@ export default function Header() {
                                 回到 Class Widgets
                             </NavItem>
                         </div>
+
+                        <div className="pt-4 border-t lg:hidden" style={{ borderColor: "var(--colorNeutralStroke2)" }}>
+                            <NavItem
+                                value="theme-toggle"
+                                onClick={() => { cycleMode(); closeMobileMenu(); }}
+                                icon={mode === "system" ? <Desktop24Regular /> : (isDarkMode ? <WeatherMoon24Regular /> : <WeatherSunny24Regular />)}
+                            >
+                                切换主题（当前：{mode === "light" ? "亮" : mode === "dark" ? "暗" : "系统"}）
+                            </NavItem>
+                        </div>
                     </div>
                 </NavDrawerBody>
                 <NavDrawerFooter>
@@ -309,7 +331,7 @@ export default function Header() {
                                     )}
                                     <div className="flex flex-col min-w-0">
                                         <Text size={300} truncate className="max-w-[200px]">
-                                            {user.email ?? displayName}
+                                            {displayName || user.email}
                                         </Text>
                                         {roleLabelsList.length > 0 && (
                                             <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -329,6 +351,13 @@ export default function Header() {
                                         插件广场控制台
                                     </NavItem>
                                 )}
+                                <NavItem
+                                    value="account"
+                                    onClick={() => { window.open("https://rinlit.cn/zh-cn/account/", "_blank"); closeMobileMenu(); }}
+                                    icon={<PersonCircle24Regular />}
+                                >
+                                    管理 RinLit 账户
+                                </NavItem>
                                 <NavItem
                                     value="sign-out"
                                     onClick={() => { handleSignOut(); closeMobileMenu(); }}
