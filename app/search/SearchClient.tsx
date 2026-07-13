@@ -120,27 +120,25 @@ export default function SearchClient() {
 
   return (
     <section className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <Text as="h1" size={700} weight="semibold">搜索插件</Text>
-        <div className="flex gap-2">
-          <SearchBox
-            aria-label="搜索插件"
-            placeholder="搜索插件、作者、描述或标签"
-            value={inputValue}
-            onChange={(_, data) => setInputValue(data.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submitSearch();
-            }}
-            size="large"
-          />
-          <Button appearance="primary" onClick={submitSearch}>搜索</Button>
-        </div>
+      {/* 移动端搜索框：PC 端（≥800px）隐藏，与 Header 的搜索入口保持一致 */}
+      <div className="flex gap-2 min-[800px]:hidden">
+        <SearchBox
+          aria-label="搜索插件"
+          placeholder="搜索插件、作者、描述或标签"
+          value={inputValue}
+          onChange={(_, data) => setInputValue(data.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") submitSearch();
+          }}
+          size="large"
+        />
+        <Button appearance="primary" onClick={submitSearch}>搜索</Button>
       </div>
 
       {query ? (
         <>
           <div className="flex flex-col gap-2">
-            <Text size={400} weight="semibold">“{query}”</Text>
+            <Text as="span" size={700} weight="semibold">“{query}”</Text>
             <Text size={300}>找到 {total} 个结果</Text>
           </div>
 

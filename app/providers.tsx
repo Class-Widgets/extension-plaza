@@ -27,6 +27,16 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const useTheme = () => useContext(ThemeContext);
 
+// 应用级浅色背景：与全局 light 主题保持一致
+// 供 FilterToolbar 等组件通过 tokens.colorNeutralBackground1 自动同步
+const APP_LIGHT_BACKGROUND = "#f3f3f3";
+
+// 自定义浅色主题：覆盖 colorNeutralBackground1 为 APP_LIGHT_BACKGROUND
+const appLightTheme: Theme = {
+    ...webLightTheme,
+    colorNeutralBackground1: APP_LIGHT_BACKGROUND,
+};
+
 export function Providers({ children }: { children: React.ReactNode }) {
     const [mode, setMode] = useState<"light" | "dark" | "system">("system");
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -73,11 +83,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const body = document.body;
-        if (isDarkMode) body.classList.add('tw-dark');
-        else body.classList.remove('tw-dark');
+        if (isDarkMode) {
+            body.classList.add('tw-dark');
+            body.style.backgroundColor = "";
+        } else {
+            body.classList.remove('tw-dark');
+            body.style.backgroundColor = APP_LIGHT_BACKGROUND;
+        }
     }, [isDarkMode]);
 
-    const currentTheme: Theme = isDarkMode ? webDarkTheme : webLightTheme;
+    const currentTheme: Theme = isDarkMode ? webDarkTheme : appLightTheme;
 
     if (!mounted) {
         return <div style={{ visibility: "hidden" }}>{children}</div>;
@@ -87,7 +102,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeContext.Provider value={{ isDarkMode, mode, setMode: setModePersist, cycleMode }}>
             <SSRProvider>
                 <FluentProvider theme={currentTheme} className={"transition-colors duration-200"}>
-                    <div className="min-h-screen flex flex-col bg-gray-200/50 dark:bg-transparent">
+                    <div className="min-h-screen flex flex-col dark:bg-transparent">
                         {children}
                     </div>
                 </FluentProvider>

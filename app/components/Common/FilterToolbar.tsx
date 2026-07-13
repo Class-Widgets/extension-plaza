@@ -16,6 +16,7 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { MoreHorizontalRegular, TextSortAscendingRegular } from "@fluentui/react-icons";
+import { useTheme } from "@/app/providers";
 
 export type FilterToolbarTag = { id: string; name: string };
 export type FilterToolbarSortOption = { value: string; label: string };
@@ -40,6 +41,11 @@ const useStyles = makeStyles({
     width: "100%",
     justifyContent: "space-between",
     columnGap: tokens.spacingHorizontalM,
+    position: "sticky",
+    top: "5rem",
+    zIndex: 40,
+    backgroundColor: tokens.colorNeutralBackground1, 
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`, 
   },
   primary: {
     display: "flex",
@@ -65,6 +71,7 @@ export default function FilterToolbar({
   visibleTagCount = 5,
 }: FilterToolbarProps) {
   const styles = useStyles();
+  const { isDarkMode } = useTheme();
   const toolbarRef = React.useRef<HTMLDivElement | null>(null);
   const [measuredVisibleCount, setMeasuredVisibleCount] = React.useState(visibleTagCount);
 

@@ -61,11 +61,54 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
   const ratingCount = Number(plugin?.rating_count ?? 0);
   const hasRating = ratingCount > 0;
   const tags = Array.isArray(plugin?.tags) ? plugin.tags.filter(Boolean).slice(0, 2) : [];
-  const tagNames = tags.map((t: any) => t.name ?? t).join(" | ");
+  const tagNames = tags.map((t: any) => t.name ?? t);
+  const ratingMetaRef = React.useRef<HTMLDivElement | null>(null);
+  const ratingRef = React.useRef<HTMLDivElement | null>(null);
+  const ratingDividerRef = React.useRef<HTMLSpanElement | null>(null);
+  const tagMeasureRef = React.useRef<HTMLDivElement | null>(null);
+  const [visibleTagCount, setVisibleTagCount] = React.useState(tagNames.length);
+
+  React.useEffect(() => {
+    const row = ratingMetaRef.current;
+    const rating = ratingRef.current;
+    const divider = ratingDividerRef.current;
+    const measure = tagMeasureRef.current;
+
+    if (!row || !rating || !divider || !measure || tagNames.length === 0) {
+      setVisibleTagCount(tagNames.length);
+      return;
+    }
+
+    const calculateVisibleTags = () => {
+      const rowStyle = window.getComputedStyle(row);
+      const groupStyle = window.getComputedStyle(measure);
+      const rowGap = Number.parseFloat(rowStyle.columnGap || rowStyle.gap || "0") || 0;
+      const groupGap = Number.parseFloat(groupStyle.columnGap || groupStyle.gap || "0") || 0;
+      const availableWidth = row.clientWidth - rating.offsetWidth - divider.offsetWidth - rowGap * 2;
+      let usedWidth = 0;
+      let nextVisibleCount = 0;
+      const items = Array.from(measure.children) as HTMLElement[];
+
+      for (const item of items) {
+        const nextWidth = item.offsetWidth + (nextVisibleCount > 0 ? groupGap * 2 + divider.offsetWidth : 0);
+        if (usedWidth + nextWidth > availableWidth) break;
+        usedWidth += nextWidth;
+        nextVisibleCount += 1;
+      }
+
+      setVisibleTagCount(nextVisibleCount);
+    };
+
+    calculateVisibleTags();
+    const observer = new ResizeObserver(calculateVisibleTags);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [tagNames.join("\u0000"), ratingAverage, hasRating]);
+  const visibleTagNames = tagNames.slice(0, visibleTagCount);
 
   return (
     <Card appearance="filled" className={cardClass} style={{ boxShadow: "none" }} role="link" tabIndex={0} onClick={goDetail} onKeyDown={onKeyDown}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 overflow-hidden">
         <CardPreview className="w-16 h-16 rounded-[16px] overflow-hidden flex-shrink-0 border border-gray-300 dark:border-gray-500">
           <div className="relative w-16 h-16">
             {iconLoading && (
@@ -85,34 +128,40 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
         </CardPreview>
 
         <div className="flex-1 min-w-0 text-left">
-          <CardHeader
-            header={<Text weight="semibold" size={400}>{plugin?.name ?? "Undefined"}</Text>}
-            description={
-              authorHref ? (
-                <Link href={authorHref} className="text-blue-600 dark:text-blue-400 hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
-                  {plugin.author || plugin.owner_id}
-                </Link>
-              ) : (
-                <Text size={200} className="text-gray-400">{plugin?.author ?? "作者未知"}</Text>
-              )
-            }
-          />
+          <div className="font-semibold text-base min-w-0" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plugin?.name ?? "Undefined"}</div>
+          {authorHref ? (
+            <Link href={authorHref} className="text-blue-600 dark:text-blue-400 hover:underline text-sm block truncate" onClick={(e) => e.stopPropagation()}>
+              {plugin.author || plugin.owner_id}
+            </Link>
+          ) : (
+            <div className="text-sm text-gray-400 truncate">{plugin?.author ?? "作者未知"}</div>
+          )}
 
           <CardFooter>
             {showRating && hasRating ? (
-              <div className="flex flex-wrap items-center gap-2 text-gray-400">
-                <div className="flex items-center gap-1 whitespace-nowrap">
+              <div ref={ratingMetaRef} className="relative flex items-center gap-2 text-gray-400 whitespace-nowrap overflow-hidden">
+                <div ref={ratingRef} className="flex items-center gap-1 flex-shrink-0">
                   <span className="text-sm">{ratingAverage.toFixed(1)}</span>
                   <StarFilled fontSize={12} aria-hidden="true" />
                 </div>
-                {tags.length > 0 && (
+                {visibleTagNames.length > 0 && (
                   <>
-                    <span>|</span>
-                    <Text size={200} className="text-gray-400" style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {tagNames}
-                    </Text>
+                    <span ref={ratingDividerRef} className="w-px h-3 bg-gray-300 dark:bg-gray-600 flex-shrink-0" />
+                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                      {visibleTagNames.map((name: string, i: number) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="w-px h-3 bg-gray-300 dark:bg-gray-600 flex-shrink-0" />}
+                          <Text size={200} className="text-gray-400 flex-shrink-0">{name}</Text>
+                        </React.Fragment>
+                      ))}
+                    </div>
                   </>
                 )}
+                <div ref={tagMeasureRef} className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-2 whitespace-nowrap">
+                  {tagNames.map((name: string, i: number) => (
+                    <Text key={i} size={200} className="text-gray-400 flex-shrink-0">{name}</Text>
+                  ))}
+                </div>
               </div>
             ) : (
               <Text size={200} className="text-gray-300" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
