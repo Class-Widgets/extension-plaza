@@ -5,7 +5,6 @@ import {
     FluentProvider,
     webLightTheme,
     webDarkTheme,
-    Theme,
     SSRProvider,
 } from "@fluentui/react-components";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -30,12 +29,6 @@ export const useTheme = () => useContext(ThemeContext);
 // 应用级浅色背景：与全局 light 主题保持一致
 // 供 FilterToolbar 等组件通过 tokens.colorNeutralBackground1 自动同步
 const APP_LIGHT_BACKGROUND = "#f3f3f3";
-
-// 自定义浅色主题：覆盖 colorNeutralBackground1 为 APP_LIGHT_BACKGROUND
-const appLightTheme: Theme = {
-    ...webLightTheme,
-    colorNeutralBackground1: APP_LIGHT_BACKGROUND,
-};
 
 export function Providers({ children }: { children: React.ReactNode }) {
     const [mode, setMode] = useState<"light" | "dark" | "system">("system");
@@ -92,7 +85,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         }
     }, [isDarkMode]);
 
-    const currentTheme: Theme = isDarkMode ? webDarkTheme : appLightTheme;
+    const currentTheme = isDarkMode ? webDarkTheme : webLightTheme;
 
     if (!mounted) {
         return <div style={{ visibility: "hidden" }}>{children}</div>;
@@ -102,7 +95,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeContext.Provider value={{ isDarkMode, mode, setMode: setModePersist, cycleMode }}>
             <SSRProvider>
                 <FluentProvider theme={currentTheme} className={"transition-colors duration-200"}>
-                    <div className="min-h-screen flex flex-col dark:bg-transparent">
+                    <div className="min-h-screen flex flex-col dark:bg-transparent" style={{ backgroundColor: isDarkMode ? undefined : APP_LIGHT_BACKGROUND }}>
                         {children}
                     </div>
                 </FluentProvider>

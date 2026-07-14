@@ -36,6 +36,8 @@ function estimateTabWidth(label: string) {
   return Math.max(56, label.length * 14 + 32);
 }
 
+const APP_LIGHT_BACKGROUND = "#f3f3f3";
+
 const useStyles = makeStyles({
   toolbar: {
     width: "100%",
@@ -44,7 +46,7 @@ const useStyles = makeStyles({
     position: "sticky",
     top: "5rem",
     zIndex: 40,
-    backgroundColor: tokens.colorNeutralBackground1, 
+    backgroundColor: tokens.colorNeutralBackground1,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`, 
   },
   primary: {
@@ -111,7 +113,7 @@ export default function FilterToolbar({
   const sortLabel = sortOptions.find((option) => option.value === sort)?.label ?? sortOptions[0]?.label ?? "排序";
 
   return (
-    <Toolbar ref={toolbarRef} aria-label={ariaLabel} className={styles.toolbar}>
+    <Toolbar ref={toolbarRef} aria-label={ariaLabel} className={styles.toolbar} style={{ backgroundColor: isDarkMode ? undefined : APP_LIGHT_BACKGROUND }}>
       <div className={styles.primary}>
         <TabList selectedValue={activeTag || "all"} onTabSelect={(_, data) => onTagChange(data.value === "all" ? "" : String(data.value))}>
           <Tab value="all">全部</Tab>
