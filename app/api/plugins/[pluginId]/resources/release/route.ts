@@ -26,7 +26,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
             return NextResponse.json({ error: `Failed to fetch release: ${remoteRes.statusText}` }, { status: remoteRes.status });
         }
 
-        const filename = `${manifest.name} (${manifest.id}.${format})`;
+        const author = manifest.author?.trim();
+        const filename = author
+            ? `${manifest.name}-(${author}).${format}`
+            : `${manifest.name}.${format}`;
         const encodedFilename = encodeURIComponent(filename);
         const body = await remoteRes.arrayBuffer();
 
