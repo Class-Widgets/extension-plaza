@@ -43,7 +43,7 @@ export default function ModerationDetailDialog({ open, plugin, requests, resubmi
                                         状态: <Badge appearance="filled" color={statusAppearance(plugin.status)}>{plugin.status}</Badge>
                                     </Text>
                                     <Text size={200}>
-                                        仓库: <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{plugin.repo_url}</a>
+                                        仓库：<a href={plugin.repo_url} target="_blank" rel="noreferrer" className="hover:underline">{plugin.repo_url}</a>
                                     </Text>
                                 </div>
                             </div>

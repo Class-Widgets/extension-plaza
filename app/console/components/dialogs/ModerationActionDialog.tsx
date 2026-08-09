@@ -182,7 +182,7 @@ export default function ModerationActionDialog({ open, item, decisionReason, loa
                                                         href={plugin.repo_url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
+                                                        className="underline hover:text-blue-800"
                                                     >
                                                         {plugin.repo_url}
                                                     </a>

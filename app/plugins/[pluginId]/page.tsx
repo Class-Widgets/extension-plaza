@@ -360,7 +360,7 @@ export default function PluginDetailPage() {
               <div className="text-sm space-y-1">
                 {manifest.owner_id && (
                   <div>
-                    <Link href={`/authors/${manifest.owner_id}`} className="text-blue-600 dark:text-blue-400 hover:underline">{manifest.author || manifest.owner_id}</Link>
+                    <Link href={`/authors/${manifest.owner_id}`} className="hover:underline">{manifest.author || manifest.owner_id}</Link>
                   </div>
                 )}
               </div>
@@ -379,7 +379,7 @@ export default function PluginDetailPage() {
                 {sectionTags.length > 0 && (
                   <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                     {sectionTags.map((tag: any) => (
-                      <Link key={tag.id || tag} href={`/search?q=${encodeURIComponent(tag.name || tag)}`} className="text-blue-600 dark:text-blue-400 hover:underline">{getTagName(tag.id)}</Link>
+                      <Link key={tag.id || tag} href={`/search?q=${encodeURIComponent(tag.name || tag)}`} className="hover:underline">{getTagName(tag.id)}</Link>
                     ))}
                   </div>
                 )}
@@ -608,7 +608,7 @@ export default function PluginDetailPage() {
           <Card className="!p-4 md:!p-8 !gap-0">
              <div className="flex items-center justify-between">
                <Text weight="semibold" size={500}>发现更多</Text>
-               {sectionTags.length > 0 && <Link href={`/search?q=${encodeURIComponent(sectionTags[0].name || sectionTags[0])}`} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">更多</Link>}
+               {sectionTags.length > 0 &&  <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => router.push(`/search?q=${encodeURIComponent(sectionTags[0].name || sectionTags[0])}`)} aria-label="查看全部评价" />}
              </div>
              <Divider className="my-3" />
              <PluginList plugins={otherPlugins} loading={isLoadingOtherPlugins} />

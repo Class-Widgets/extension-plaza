@@ -84,7 +84,7 @@ export default function PluginTablePanel({ title, plugins, loading, readonly, fi
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                                        <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="hover:underline">
                                             打开仓库
                                         </a>
                                     </TableCell>

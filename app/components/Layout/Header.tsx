@@ -100,7 +100,7 @@ export default function Header() {
                 <div className="max-w-6xl mx-auto px-4">
                     <Toolbar aria-label="App bar" className="h-20 px-0">
                         <div className="flex items-center gap-3 h-full">
-                            <Link href="/" className="flex items-center gap-2">
+                            <Link href="/" className="flex items-center gap-2 no-brand-link">
                                 <img
                                     alt={"Plugin Plaza"}
                                     src={"/images/logo.png"}

@@ -87,7 +87,7 @@ export default function MyPluginsPanel({ plugins, moderationRequests, loading, o
                                             )}
                                         </TableCell>
                                         <TableCell onClick={(e) => e.stopPropagation()}>
-                                            <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                                            <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="hover:underline">
                                                 打开仓库
                                             </a>
                                         </TableCell>

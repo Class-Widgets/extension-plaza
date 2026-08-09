@@ -130,7 +130,7 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
         <div className="flex-1 min-w-0 text-left">
           <div className="font-semibold text-base min-w-0" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{plugin?.name ?? "Undefined"}</div>
           {authorHref ? (
-            <Link href={authorHref} className="text-blue-600 dark:text-blue-400 hover:underline text-sm block truncate" onClick={(e) => e.stopPropagation()}>
+            <Link href={authorHref} className="hover:no-underline text-sm block truncate">
               {plugin.author || plugin.owner_id}
             </Link>
           ) : (
@@ -171,7 +171,7 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
           </CardFooter>
         </div>
 
-        <Button appearance="transparent" icon={<ChevronRightRegular />} aria-label="查看详情" className="flex-shrink-0" />
+        {/*<Button appearance="transparent" icon={<ChevronRightRegular />} aria-label="查看详情" className="flex-shrink-0" />*/}
       </div>
     </Card>
   );
