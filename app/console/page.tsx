@@ -422,20 +422,13 @@ export default function AdminPage() {
             return rating;
         });
         const userIds = Array.from(new Set(rows.map((item) => item.user_id)));
-        const profilesResponse = userIds.length
-            ? await fetch(`/api/profiles?ids=${encodeURIComponent(userIds.join(","))}`)
-            : null;
-        const profilesPayload = profilesResponse ? await profilesResponse.json() as {
-            ok: boolean;
-            data?: Array<Pick<Profile, "id" | "display_name">>;
-            error?: string;
-        } : { ok: true, data: [] };
+        const { data: profiles, error: profilesError } = userIds.length
+            ? await supabase.from("profiles").select("id, display_name").in("id", userIds)
+            : { data: [], error: null };
 
-        if (!profilesPayload.ok) {
-            toastError(`读取评分用户昵称失败：${profilesPayload.error || "未知错误"}`);
-        }
+        if (profilesError) toastError(`读取评分用户昵称失败：${profilesError.message}`);
 
-        const profileMap = new Map((profilesPayload.data || []).map((item) => [item.id, item]));
+        const profileMap = new Map((profiles || []).map((item) => [item.id, item]));
         const trimmedKeyword = ratingKeyword.trim().toLowerCase();
         const withProfiles = rows.map((item) => ({ ...item, profile: profileMap.get(item.user_id) ?? null }));
         const filteredRows = trimmedKeyword
@@ -487,10 +480,9 @@ export default function AdminPage() {
     }, [loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user, view]);
 
     React.useEffect(() => {
-        if (!canModerate && !canManageAll && !canViewRatings) return;
-        if (canModerate) loadModeration();
-        if (canViewRatings) loadRatings();
-        if (canManageAll) loadAllPlugins();
+        if (view === "moderation" && canModerate) loadModeration();
+        if (view === "ratings" && canViewRatings) loadRatings();
+        if (view === "allPlugins" && canManageAll) loadAllPlugins();
     }, [canModerate, canManageAll, canViewRatings, loadAllPlugins, loadModeration, loadRatings, view]);
 
     React.useEffect(() => {
@@ -501,12 +493,12 @@ export default function AdminPage() {
             loadTags();
             loadMyModerationRequests();
             loadAverageRating();
-            if (canModerate) loadModeration();
-            if (canViewRatings) loadRatings();
-            if (canManageAll) loadAllPlugins();
+            if (view === "moderation" && canModerate) loadModeration();
+            if (view === "ratings" && canViewRatings) loadRatings();
+            if (view === "allPlugins" && canManageAll) loadAllPlugins();
         }, 30000);
         return () => clearInterval(interval);
-    }, [user, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canViewRatings, loadModeration, loadRatings, loadAllPlugins]);
+    }, [user, view, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canViewRatings, loadModeration, loadRatings, loadAllPlugins]);
 
     const submitPlugin = async () => {
         if (!user) return;
