@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
     Hamburger,
+    Badge,
     NavCategory,
     NavCategoryItem,
     NavDrawer,
@@ -24,6 +25,7 @@ import {
 } from "@fluentui/react-icons";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import { supabase } from "@/lib/supabase";
+import { useConsoleNotifications } from "@/app/components/Layout/useConsoleNotifications";
 
 import type { AccountRole, ConsoleView, ModerationRequest, PluginForm, PluginRatingRow, PluginRow, Profile, PublishToken, TagRow } from "./types";
 import { createPlainToken, emptyPluginForm, normalizePluginRows, sha256Hex } from "./utils";
@@ -95,6 +97,7 @@ export default function AdminPage() {
 
     const role = profile?.role ?? "USER";
     const allRoles: AccountRole[] = Array.from(new Set([role, ...userRoles]));
+    const { counts: notificationCounts, markConsoleNotificationsRead, markNotificationCategoryRead } = useConsoleNotifications(user?.id, allRoles);
     // MASTER: 全量管理 + 审核
     // CW_MAINTAINER: 审核
     // USER: 仅开发者工作台
@@ -104,6 +107,13 @@ export default function AdminPage() {
     const canManageAll = isMaster;
     const canAccessConsole = Boolean(profile) || userRoles.length > 0;
     const canViewRatings = canAccessConsole;
+
+    const openConsoleView = React.useCallback((nextView: ConsoleView) => {
+        if (nextView === "myPlugins") markNotificationCategoryRead("moderationUpdates");
+        if (nextView === "ratings") markNotificationCategoryRead("ratingUpdates");
+        if (nextView === "moderation") markNotificationCategoryRead("moderationQueue");
+        setView(nextView);
+    }, [markNotificationCategoryRead]);
 
     const updateForm = (field: keyof PluginForm, value: string) => {
         setForm((current) => ({ ...current, [field]: value }));
@@ -412,10 +422,20 @@ export default function AdminPage() {
             return rating;
         });
         const userIds = Array.from(new Set(rows.map((item) => item.user_id)));
-        const { data: profiles } = userIds.length
-            ? await supabase.from("profiles").select("id, display_name").in("id", userIds)
-            : { data: [] };
-        const profileMap = new Map((profiles || []).map((item) => [item.id, item]));
+        const profilesResponse = userIds.length
+            ? await fetch(`/api/profiles?ids=${encodeURIComponent(userIds.join(","))}`)
+            : null;
+        const profilesPayload = profilesResponse ? await profilesResponse.json() as {
+            ok: boolean;
+            data?: Array<Pick<Profile, "id" | "display_name">>;
+            error?: string;
+        } : { ok: true, data: [] };
+
+        if (!profilesPayload.ok) {
+            toastError(`读取评分用户昵称失败：${profilesPayload.error || "未知错误"}`);
+        }
+
+        const profileMap = new Map((profilesPayload.data || []).map((item) => [item.id, item]));
         const trimmedKeyword = ratingKeyword.trim().toLowerCase();
         const withProfiles = rows.map((item) => ({ ...item, profile: profileMap.get(item.user_id) ?? null }));
         const filteredRows = trimmedKeyword
@@ -789,14 +809,29 @@ export default function AdminPage() {
         <>
             <NavItem icon={<HomeRegular />} value="overview">概览</NavItem>
             <NavItem icon={<AddRegular />} value="submit">提交插件</NavItem>
-            <NavItem icon={<PlugConnectedRegular />} value="myPlugins">我的插件</NavItem>
+            <NavItem icon={<PlugConnectedRegular />} value="myPlugins">
+                <span className="flex w-full items-center gap-2">
+                    <span>我的插件</span>
+                    {notificationCounts.moderationUpdates > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.moderationUpdates > 99 ? "99+" : notificationCounts.moderationUpdates}</Badge>}
+                </span>
+            </NavItem>
             <NavItem icon={<KeyRegular />} value="tokens">发布 Token</NavItem>
-            <NavItem icon={<HomeRegular />} value="ratings">评分评论</NavItem>
+            <NavItem icon={<HomeRegular />} value="ratings">
+                <span className="flex w-full items-center gap-2">
+                    <span>评分评论</span>
+                    {notificationCounts.ratingUpdates > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.ratingUpdates > 99 ? "99+" : notificationCounts.ratingUpdates}</Badge>}
+                </span>
+            </NavItem>
             {(canModerate || canManageAll) && (
                 <NavCategory value="admin">
                     <NavCategoryItem icon={<ShieldRegular />}>{canManageAll ? "管理员" : "CW 运营维护"}</NavCategoryItem>
                     <NavSubItemGroup>
-                        {canModerate && <NavSubItem value="moderation">审核队列</NavSubItem>}
+                        {canModerate && <NavSubItem value="moderation">
+                            <span className="flex w-full items-center gap-2">
+                                <span>审核队列</span>
+                                {notificationCounts.moderationQueue > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.moderationQueue > 99 ? "99+" : notificationCounts.moderationQueue}</Badge>}
+                            </span>
+                        </NavSubItem>}
                         {canManageAll && <NavSubItem value="allPlugins">全量管理</NavSubItem>}
                     </NavSubItemGroup>
                 </NavCategory>
@@ -822,7 +857,7 @@ export default function AdminPage() {
                 type={navType}
                 selectedValue={view}
                 onNavItemSelect={(_, data) => {
-                    setView(data.value as ConsoleView);
+                    openConsoleView(data.value as ConsoleView);
                     if (navType === "overlay") setNavOpen(false);
                 }}
                 aria-label="插件广场控制台导航"
@@ -845,7 +880,7 @@ export default function AdminPage() {
                         <Text as="h1" size={800} weight="semibold">{viewTitle[view]}</Text>
                     </div>
 
-                    {view === "overview" && <OverviewPanel myPluginCount={myPlugins.length} tokenCount={tokens.length} pendingMyPlugins={pendingMyPlugins} pendingRequests={pendingRequests} canModerate={canModerate} averageRating={averageRating} onOpenSubmit={() => setView("submit")} onOpenMyPlugins={() => setView("myPlugins")} onOpenTokens={() => setView("tokens")} onOpenModeration={() => setView("moderation")} />}
+                    {view === "overview" && <OverviewPanel myPluginCount={myPlugins.length} tokenCount={tokens.length} pendingMyPlugins={pendingMyPlugins} pendingRequests={pendingRequests} canModerate={canModerate} averageRating={averageRating} notificationCounts={notificationCounts} onOpenSubmit={() => openConsoleView("submit")} onOpenMyPlugins={() => openConsoleView("myPlugins")} onOpenTokens={() => openConsoleView("tokens")} onOpenModeration={() => openConsoleView("moderation")} onOpenRatings={() => openConsoleView("ratings")} onMarkNotificationsRead={markConsoleNotificationsRead} />}
                     {view === "submit" && <SubmitPanel form={form} tags={tags} loading={loadingData} onChange={updateForm} onTagChange={(tagIds) => setForm((prev) => ({ ...prev, tag_ids: tagIds }))} onSubmit={submitPlugin} />}
                     {view === "myPlugins" && <MyPluginsPanel plugins={myPlugins} moderationRequests={myModerationRequests} loading={loadingData} onReload={loadMyPlugins} onOpenDetail={openDetailDialog} />}
                     {view === "tokens" && <TokensPanel tokens={tokens} plugins={myPlugins} loading={loadingData} newToken={newToken} onCreateToken={createToken} onRevokeToken={revokeToken} onReload={loadTokens} />}

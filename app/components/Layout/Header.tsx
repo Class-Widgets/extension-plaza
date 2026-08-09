@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Button, Tooltip, Text, Toolbar, TabList, Tab, SearchBox, Drawer, DrawerBody, Input, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem, Tag } from "@fluentui/react-components";
+import { Badge, Button, Tooltip, Text, Toolbar, TabList, Tab, SearchBox, Drawer, DrawerBody, Input, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem, Tag } from "@fluentui/react-components";
 import {WeatherSunny24Regular, WeatherMoon24Regular, Desktop24Regular, ArrowLeft16Regular, Navigation24Regular, Search24Regular, Dismiss24Regular, PersonCircle24Regular, SignOut24Regular} from "@fluentui/react-icons";
 import { useTheme } from "@/app/providers";
 import { useRouter, usePathname } from "next/navigation";
@@ -8,6 +8,7 @@ import * as React from "react";
 import AuthDialog from "@/app/components/Auth/AuthDialog";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import { supabase } from "@/lib/supabase";
+import { formatNotificationCount, useConsoleNotifications } from "./useConsoleNotifications";
 
 export default function Header() {
     const { isDarkMode, mode, cycleMode } = useTheme();
@@ -20,6 +21,7 @@ export default function Header() {
     const [roles, setRoles] = React.useState<string[]>([]);
     const [profileDisplayName, setProfileDisplayName] = React.useState<string | null>(null);
     const { user, signOut } = useAuthSession();
+    const { count: consoleNotificationCount } = useConsoleNotifications(user?.id, roles);
     // 所有已登录用户均可进入控制台（USER 也有开发者工作台）
     const canAccessConsole = roles.length > 0;
     // 角色等级：数值越小等级越高
@@ -155,11 +157,24 @@ export default function Header() {
                                             className="!min-w-0 !px-1.5"
                                             aria-label="账户菜单"
                                         >
-                                            {avatarUrl ? (
-                                                <Avatar size={24} image={{ src: avatarUrl }} />
-                                            ) : (
-                                                <Avatar size={24} name={initial} />
-                                            )}
+                                            <span className="relative inline-flex">
+                                                {avatarUrl ? (
+                                                    <Avatar size={24} image={{ src: avatarUrl }} />
+                                                ) : (
+                                                    <Avatar size={24} name={initial} />
+                                                )}
+                                                {consoleNotificationCount > 0 && (
+                                                    <Badge
+                                                        appearance="filled"
+                                                        color="danger"
+                                                        size="small"
+                                                        className="!absolute -right-2 -bottom-1 z-10 !min-w-4 !px-1"
+                                                        aria-label={`控制台有 ${formatNotificationCount(consoleNotificationCount)} 条待处理消息`}
+                                                    >
+                                                        {formatNotificationCount(consoleNotificationCount)}
+                                                    </Badge>
+                                                )}
+                                            </span>
                                         </Button>
                                     </MenuTrigger>
                                     <MenuPopover>
@@ -183,7 +198,14 @@ export default function Header() {
                                             </MenuItem>
                                             {canAccessConsole && (
                                                 <MenuItem icon={<Navigation24Regular />} onClick={() => router.push("/console")}>
-                                                    插件广场控制台
+                                                    <span className="flex w-full min-w-[190px] items-center gap-4">
+                                                        <span>插件广场控制台</span>
+                                                        {consoleNotificationCount > 0 && (
+                                                            <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">
+                                                                {formatNotificationCount(consoleNotificationCount)}
+                                                            </Badge>
+                                                        )}
+                                                    </span>
                                                 </MenuItem>
                                             )}
                                             <MenuItem icon={<SignOut24Regular />} onClick={handleSignOut}>
@@ -348,7 +370,14 @@ export default function Header() {
                                         onClick={() => { router.push("/console"); closeMobileMenu(); }}
                                         icon={<Navigation24Regular />}
                                     >
-                                        插件广场控制台
+                                        <span className="flex w-full items-center gap-4">
+                                            <span>插件广场控制台</span>
+                                            {consoleNotificationCount > 0 && (
+                                                <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">
+                                                    {formatNotificationCount(consoleNotificationCount)}
+                                                </Badge>
+                                            )}
+                                        </span>
                                     </NavItem>
                                 )}
                                 <NavItem

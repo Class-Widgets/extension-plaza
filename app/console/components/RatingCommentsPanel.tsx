@@ -118,7 +118,7 @@ export default function RatingCommentsPanel({ items, loading, ratingFilter, keyw
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <Text>{item.profile?.display_name || "未设置昵称"}</Text>
+                                                <Text>{item.profile?.display_name?.trim() || item.user_id}</Text>
                                                 <Text size={200} className="text-gray-500 dark:text-gray-400">
                                                     {item.user_id}
                                                 </Text>
