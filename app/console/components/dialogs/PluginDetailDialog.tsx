@@ -74,7 +74,9 @@ export default function PluginDetailDialog({
     React.useEffect(() => { setHistoryPage(1); }, [requests.length]);
 
     const latestRejected = requests.find((r) => r.status === "REJECTED");
-    const canResubmit = plugin?.status === "hidden";
+    const hasPendingReview = requests.some((request) => request.status === "PENDING");
+    const canWrite = plugin?.status !== "hidden";
+    const canResubmit = plugin?.status === "pending" && !hasPendingReview;
     const pageData = React.useMemo(
         () => requests.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE),
         [requests, historyPage],
@@ -178,32 +180,32 @@ export default function PluginDetailDialog({
                                         <Input value={editForm.id} disabled />
                                     </Field>
                                     <Field label="名称" required>
-                                        <Input value={editForm.name} onChange={(_, data) => onFormChange("name", data.value)} />
+                                        <Input value={editForm.name} disabled={!canWrite} onChange={(_, data) => onFormChange("name", data.value)} />
                                     </Field>
                                     <Field label="GitHub 仓库 URL" required>
-                                        <Input value={editForm.repo_url} onChange={(_, data) => onFormChange("repo_url", data.value)} />
+                                        <Input value={editForm.repo_url} disabled={!canWrite} onChange={(_, data) => onFormChange("repo_url", data.value)} />
                                     </Field>
                                     <Field label="分支">
-                                        <Input value={editForm.branch} onChange={(_, data) => onFormChange("branch", data.value)} />
+                                        <Input value={editForm.branch} disabled={!canWrite} onChange={(_, data) => onFormChange("branch", data.value)} />
                                     </Field>
                                     <Field label="版本">
-                                        <Input value={editForm.version} onChange={(_, data) => onFormChange("version", data.value)} />
+                                        <Input value={editForm.version} disabled={!canWrite} onChange={(_, data) => onFormChange("version", data.value)} />
                                     </Field>
                                     <Field label="API 版本">
-                                        <Input value={editForm.api_version} onChange={(_, data) => onFormChange("api_version", data.value)} />
+                                        <Input value={editForm.api_version} disabled={!canWrite} onChange={(_, data) => onFormChange("api_version", data.value)} />
                                     </Field>
                                     <Field label="README 路径">
-                                        <Input value={editForm.readme} onChange={(_, data) => onFormChange("readme", data.value)} />
+                                        <Input value={editForm.readme} disabled={!canWrite} onChange={(_, data) => onFormChange("readme", data.value)} />
                                     </Field>
                                     <Field label="图标路径">
-                                        <Input value={editForm.icon} onChange={(_, data) => onFormChange("icon", data.value)} />
+                                        <Input value={editForm.icon} disabled={!canWrite} onChange={(_, data) => onFormChange("icon", data.value)} />
                                     </Field>
                                 </div>
                                 <Field label="描述" className="mt-4">
-                                    <Textarea value={editForm.description} onChange={(_, data) => onFormChange("description", data.value)} resize="vertical" />
+                                    <Textarea value={editForm.description} disabled={!canWrite} onChange={(_, data) => onFormChange("description", data.value)} resize="vertical" />
                                 </Field>
                                 <Field label="标签" className="mt-4">
-                                    <TagPickerField tags={tags} selectedTagIds={editForm.tag_ids} disabled={loading} onChange={onTagChange} />
+                                    <TagPickerField tags={tags} selectedTagIds={editForm.tag_ids} disabled={loading || !canWrite} onChange={onTagChange} />
                                 </Field>
                             </>
                         )}
@@ -217,7 +219,7 @@ export default function PluginDetailDialog({
                                 {loading ? "提交中..." : "重新提交"}
                             </Button>
                         )}
-                        {tab === "edit" && (
+                        {tab === "edit" && canWrite && (
                             <Button appearance="primary" disabled={loading || !editForm.name.trim() || !editForm.repo_url.trim()} onClick={onSave}>
                                 {loading ? "保存中..." : "保存"}
                             </Button>

@@ -468,7 +468,7 @@ export default function AdminPage() {
         if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll)) {
             router.replace("/console/redirect/forbidden");
         }
-    }, [authLoading, canAccessConsole, canManageAll, canModerate, profileLoading, router, user, view]);
+    }, [authLoading, canAccessConsole, canManageAll, canModerate, canViewRatings, profileLoading, router, user, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -603,15 +603,20 @@ export default function AdminPage() {
         setLoadingData(false);
     };
 
-    const decideRequest = async (request: ModerationRequest, action: "approve" | "reject", reason?: string) => {
+    const decideRequest = async (
+        request: ModerationRequest,
+        action: "approve" | "reject",
+        reason?: string,
+        rejectedSubmissionStatus: "hidden" | "pending" = "hidden",
+    ) => {
         const nextRequestStatus = action === "approve" ? "APPROVED" : "REJECTED";
         // 根据请求类型决定插件状态：
-        // SUBMISSION: approve -> published, reject -> hidden
+        // SUBMISSION: approve -> published, reject -> hidden / pending
         // REMOVAL:    approve -> hidden,    reject -> published
         const isRemoval = request.request_type === "REMOVAL";
         const nextPluginStatus = isRemoval
             ? (action === "approve" ? "hidden" : "published")
-            : (action === "approve" ? "published" : "hidden");
+            : (action === "approve" ? "published" : rejectedSubmissionStatus);
 
         setLoadingData(true);
 
@@ -740,9 +745,14 @@ export default function AdminPage() {
         setModerationDetailDialogOpen(false);
     };
 
-    const handleModerationReject = async () => {
+    const handleModerationReject = async (outcome: "hide" | "returnToPending") => {
         if (!moderationDetailItem) return;
-        await decideRequest(moderationDetailItem, "reject", moderationDecisionReason);
+        await decideRequest(
+            moderationDetailItem,
+            "reject",
+            moderationDecisionReason,
+            outcome === "returnToPending" ? "pending" : "hidden",
+        );
         setModerationDetailDialogOpen(false);
     };
 

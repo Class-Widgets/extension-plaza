@@ -11,6 +11,12 @@ import {
     DialogSurface,
     DialogTitle,
     Field,
+    Menu,
+    MenuButton,
+    MenuItem,
+    MenuList,
+    MenuPopover,
+    MenuTrigger,
     Spinner,
     Text,
     Textarea,
@@ -20,6 +26,9 @@ import {
     CheckmarkCircleRegular,
     DismissCircleRegular,
     WarningRegular,
+    EditRegular,
+    ShieldDismissRegular
+
 } from "@fluentui/react-icons";
 import { supabase } from "@/lib/supabase";
 import { verifyPlugin, allChecksPassed } from "@/lib/githubCheck";
@@ -36,7 +45,7 @@ type ModerationActionDialogProps = {
     onOpenChange: (open: boolean) => void;
     onDecisionReasonChange: (value: string) => void;
     onApprove: () => void;
-    onReject: () => void;
+    onReject: (outcome: "hide" | "returnToPending") => void;
     onOpenTextDialog: (title: string, content: string) => void;
 };
 
@@ -155,6 +164,7 @@ export default function ModerationActionDialog({ open, item, decisionReason, loa
     if (!item) return null;
     const plugin = getPluginFromRequest(item);
     const isPending = item.status === "PENDING";
+    const isSubmission = item.request_type === "SUBMISSION";
     const checksAllPassed = allChecksPassed(checks);
 
     return (
@@ -314,9 +324,25 @@ export default function ModerationActionDialog({ open, item, decisionReason, loa
                                 <Button appearance="primary" icon={<CheckmarkCircleRegular />} disabled={loading} onClick={onApprove}>
                                     通过
                                 </Button>
-                                <Button appearance="secondary" icon={<DismissCircleRegular />} disabled={loading} onClick={onReject}>
-                                    拒绝
-                                </Button>
+                                {isSubmission ? (
+                                    <Menu>
+                                        <MenuTrigger disableButtonEnhancement>
+                                            <MenuButton appearance="secondary" icon={<DismissCircleRegular />} disabled={loading}>
+                                                拒绝
+                                            </MenuButton>
+                                        </MenuTrigger>
+                                        <MenuPopover>
+                                            <MenuList>
+                                                <MenuItem icon={<EditRegular />} onClick={() => onReject("returnToPending")}>要求修改</MenuItem>
+                                                <MenuItem icon={<ShieldDismissRegular/>} onClick={() => onReject("hide")}>移除并锁定</MenuItem>
+                                            </MenuList>
+                                        </MenuPopover>
+                                    </Menu>
+                                ) : (
+                                    <Button appearance="secondary" icon={<DismissCircleRegular />} disabled={loading} onClick={() => onReject("hide")}>
+                                        拒绝移除
+                                    </Button>
+                                )}
                             </>
                         )}
                     </DialogActions>
