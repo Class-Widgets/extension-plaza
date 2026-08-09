@@ -17,6 +17,14 @@ const useStyles = makeStyles({
     minWidth: "146px",
     maxWidth: "146px",
     overflow: "hidden",
+    // ── 悬停上浮 + 阴影（与 QML 版 PluginCard 保持一致）──
+    transitionProperty: "transform, box-shadow",
+    transitionDuration: "260ms",
+    transitionTimingFunction: "cubic-bezier(0.215, 0.61, 0.355, 1)", // OutCubic
+    ":hover": {
+      transform: "translateY(-2px)",
+      boxShadow: "0 3px 12px rgba(51, 51, 51, 0.1)",
+    },
   },
   preview: {
     position: "relative",

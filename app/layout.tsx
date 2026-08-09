@@ -3,6 +3,7 @@ import "./globals.css";
 import "./style/readme.css";
 import {Providers} from "@/app/providers";
 import AppShell from "@/app/AppShell";
+import DisplayNameReminder from "@/app/components/Common/DisplayNameReminder";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <body className="min-h-screen flex flex-col">
         <Providers>
             <AppShell>{children}</AppShell>
+            <DisplayNameReminder />
         </Providers>
         </body>
         </html>

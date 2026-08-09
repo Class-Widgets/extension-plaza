@@ -54,6 +54,23 @@ h1, h2, h3, h4 {
 
 :root { color-scheme: light dark; }
 
+/* 确保链接使用 Fluent UI 品牌色，而非浏览器默认蓝色 */
+a {
+  color: var(--colorBrandForegroundLink, #0078D4);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--colorBrandForegroundLinkHover, #005A9E);
+  /*text-decoration: underline;*/
+}
+
+/* Logo 区域排除：保持原始颜色（不应用品牌蓝） */
+a.no-brand-link,
+a.no-brand-link:hover {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
 /* 6. 隐藏横向滚动条（TagPills 使用） */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
