@@ -3,6 +3,28 @@ import { NextResponse } from "next/server";
 import { getPluginManifest } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
+function getReleaseUrl(repositoryUrl: string, assetName: string): string {
+    const baseUrl = repositoryUrl.replace(/\/+$/, "");
+
+    try {
+        const url = new URL(baseUrl);
+        if (url.hostname === "github.com") {
+            const [owner, repository] = url.pathname.split("/").filter(Boolean);
+            if (owner && repository) {
+                return `https://github.com/${owner}/${repository.replace(/\.git$/, "")}/releases/latest/download/${encodeURIComponent(assetName)}`;
+            }
+        }
+    } catch {
+        // Use the supplied URL when it cannot be parsed as a GitHub repository URL.
+    }
+
+    return `${baseUrl}/releases/latest/download/${encodeURIComponent(assetName)}`;
+}
+
+function throughMirror(mirror: string, targetUrl: string): string {
+    return `${mirror.replace(/\/$/, "")}/${targetUrl.replace(/^https?:\/\//, "")}`;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     try {
         const { pluginId } = await ctx.params;
@@ -16,12 +38,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
         const manifest = await getPluginManifest(pluginId);
         
         // 构建原始 release 下载 URL
-        let releaseUrl = `${manifest.url.replace(/\/$/, '')}/releases/latest/download/${manifest.id}.${format}`;
+        const releaseUrl = getReleaseUrl(manifest.url, `${manifest.id}.${format}`);
         const mirror = await pickMirrorFor(releaseUrl);
-        releaseUrl = `${mirror}/${releaseUrl.replace('https://', '')}`;
+        const mirroredReleaseUrl = throughMirror(mirror, releaseUrl);
 
         // 代理下载，设置自定义文件名
-        const remoteRes = await fetch(releaseUrl);
+        let remoteRes: Response;
+        try {
+            remoteRes = await fetch(mirroredReleaseUrl);
+        } catch {
+            remoteRes = await fetch(releaseUrl);
+        }
+        if (!remoteRes.ok) {
+            remoteRes = await fetch(releaseUrl);
+        }
         if (!remoteRes.ok) {
             return NextResponse.json({ error: `Failed to fetch release: ${remoteRes.statusText}` }, { status: remoteRes.status });
         }
@@ -41,7 +71,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
                 "Cache-Control": "public, max-age=60, s-maxage=300",
             },
         });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 404 });
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to fetch release";
+        return NextResponse.json({ error: message }, { status: 404 });
     }
 }
