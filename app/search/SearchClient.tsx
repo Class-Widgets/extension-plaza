@@ -4,13 +4,13 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
-  SearchBox,
   Text,
 } from "@fluentui/react-components";
 import PluginGrid from "@/app/components/Plugin/PluginGrid";
 import Pagination from "@/app/components/Common/Pagination";
 import EmptyState from "@/app/components/Common/EmptyState";
 import FilterToolbar from "@/app/components/Common/FilterToolbar";
+import SearchSuggestBox from "@/app/components/Common/SearchSuggestBox";
 
 type TagItem = { id: string; name: string };
 
@@ -103,8 +103,8 @@ export default function SearchClient() {
     return () => controller.abort();
   }, [activeTag, page, query, sort]);
 
-  const submitSearch = () => {
-    const nextQuery = inputValue.trim();
+  const submitSearch = (next?: string) => {
+    const nextQuery = (next ?? inputValue).trim();
     router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
   };
 
@@ -122,17 +122,16 @@ export default function SearchClient() {
     <section className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-6">
       {/* 移动端搜索框：PC 端（≥800px）隐藏，与 Header 的搜索入口保持一致 */}
       <div className="flex gap-2 min-[800px]:hidden">
-        <SearchBox
-          aria-label="搜索插件"
-          placeholder="搜索插件、作者、描述或标签"
+        <SearchSuggestBox
           value={inputValue}
-          onChange={(_, data) => setInputValue(data.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submitSearch();
-          }}
+          onValueChange={setInputValue}
+          onSubmit={submitSearch}
+          placeholder="搜索插件、作者、描述或标签"
           size="large"
+          ariaLabel="搜索插件"
+          className="flex-1 min-w-0"
         />
-        <Button appearance="primary" onClick={submitSearch}>搜索</Button>
+        <Button appearance="primary" onClick={() => submitSearch()}>搜索</Button>
       </div>
 
       {query ? (

@@ -21,6 +21,12 @@ body {
 
 @custom-variant dark (&:where(.tw-dark, .tw-dark *));
 
+
+/* 允许 Fluent MenuItem 内容槽收缩（min-width: 0），长文本可省略号截断，避免内容溢出下拉框 */
+.fui-MenuItem__content {
+  min-width: 0;
+}
+
 /* 3. 修复文本截断 (Text Truncation) */
 /* Fluent UI 的 Text 组件经常需要 line-clamp */
 .line-clamp-2 {
@@ -79,3 +85,4 @@ a.no-brand-link:hover {
 .banner-text-content a {
   text-decoration: underline;
 }
+

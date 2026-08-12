@@ -42,6 +42,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | 2 | GET | `/api/plugins` | 插件列表（分页） |
 | 3 | GET | `/api/plugins/[pluginId]` | 插件详情 |
 | 4 | GET | `/api/plugins/search` | 搜索插件 |
+| 4.5 | GET | `/api/plugins/suggest` | 搜索建议（Autofill） |
+| 4.6 | GET | `/api/plugins/random` | 随机推荐插件 |
 | 5 | GET | `/api/plugins/tags` | 标签字典 / 标签查询 |
 | 6 | GET | `/api/plugins/category` | 按标签筛选插件 |
 | 7 | GET | `/api/plugins/latest` | 最新插件 |
@@ -232,6 +234,66 @@ curl "http://localhost:3000/api/plugins/search?q=ai"
 }
 ```
 
+## 4.5 插件搜索建议 API
+
+`GET /api/plugins/suggest`
+
+输入关键词，返回搜索建议（Autofill）。建议来源包括插件名称 / ID、标签和作者，供搜索框下拉联想使用；`q` 为空时返回标签和作者关键词，供客户端填充搜索页面。
+
+**参数**
+
+| 参数名 | 类型 | 描述 | 默认值 |
+|-------|------|------|--------|
+| `q` | string | 搜索关键词 | `""` |
+| `limit` | number | 返回建议数量上限（最大 `20`） | `8` |
+
+**调用示例**
+
+```bash
+curl "http://localhost:3000/api/plugins/suggest?q=ai&limit=8"
+```
+
+**返回范例**
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "type": "plugin",
+      "label": "示例插件",
+      "value": "示例插件",
+      "pluginId": "com.classwidgets.example-plugin"
+    },
+    {
+      "type": "tag",
+      "label": "ai",
+      "value": "ai"
+    },
+    {
+      "type": "author",
+      "label": "owner",
+      "value": "owner"
+    }
+  ],
+  "meta": {
+    "query": "ai",
+    "limit": 8
+  }
+}
+```
+
+排序规则：前缀匹配优先，其次按类型（插件 > 标签 > 作者），再按名称长度；`q` 为空时仅返回标签和作者关键词。
+
+## 4.6 随机推荐插件 API
+
+`GET /api/plugins/random`
+
+随机返回插件记录，适合客户端的推荐区域。
+
+| 参数名 | 类型 | 描述 | 默认值 |
+|-------|------|------|--------|
+| `limit` | number | 返回插件数量上限（最大 `20`） | `6` |
 ## 5. 插件标签 API
 
 `GET /api/plugins/tags`

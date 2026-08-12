@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Badge, Button, Tooltip, Text, Toolbar, TabList, Tab, SearchBox, Drawer, DrawerBody, Input, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem, Tag } from "@fluentui/react-components";
+import { Badge, Button, Tooltip, Text, Toolbar, TabList, Tab, Drawer, DrawerBody, Avatar, Menu, MenuTrigger, MenuList, MenuItem, MenuPopover, NavDrawer, NavDrawerHeader, NavDrawerBody, NavDrawerFooter, NavItem, Tag } from "@fluentui/react-components";
 import {WeatherSunny24Regular, WeatherMoon24Regular, Desktop24Regular, ArrowLeft16Regular, Navigation24Regular, Search24Regular, Dismiss24Regular, PersonCircle24Regular, SignOut24Regular} from "@fluentui/react-icons";
 import { useTheme } from "@/app/providers";
 import { useRouter, usePathname } from "next/navigation";
@@ -9,6 +9,7 @@ import AuthDialog from "@/app/components/Auth/AuthDialog";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import { supabase } from "@/lib/supabase";
 import { formatNotificationCount, useConsoleNotifications } from "./useConsoleNotifications";
+import SearchSuggestBox from "@/app/components/Common/SearchSuggestBox";
 
 export default function Header() {
     const { isDarkMode, mode, cycleMode } = useTheme();
@@ -79,10 +80,10 @@ export default function Header() {
     const avatarUrl = userMeta.avatar_url as string | undefined;
     const initial = (displayName || user?.email || "?").charAt(0).toUpperCase();
 
-    const submitSearch = () => {
-        const keyword = q.trim();
-        if (!keyword) return;
-        router.push(`/search?q=${encodeURIComponent(keyword)}`);
+    const submitSearch = (keyword?: string) => {
+        const next = (keyword ?? q).trim();
+        if (!next) return;
+        router.push(`/search?q=${encodeURIComponent(next)}`);
         setIsMobileSearchOpen(false);
     };
 
@@ -128,13 +129,13 @@ export default function Header() {
 
                             {/* 桌面端搜索框 */}
                             <div className="hidden min-[800px]:flex items-center gap-2">
-                                <SearchBox 
-                                    value={q} 
-                                    onChange={(e, data) => setQ(data.value ?? "")} 
-                                    placeholder="搜索扩展或主题" 
-                                    size="medium" 
-                                    className="w-64" 
-                                    onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") submitSearch(); }} 
+                                <SearchSuggestBox
+                                    value={q}
+                                    onValueChange={setQ}
+                                    onSubmit={submitSearch}
+                                    placeholder="搜索扩展或主题"
+                                    size="medium"
+                                    className="w-64"
                                 />
                             </div>
 
@@ -272,16 +273,16 @@ export default function Header() {
                                 aria-label="关闭搜索"
                             />
                         </div>
-                        <Input
+                        <SearchSuggestBox
                             value={q}
-                            onChange={(e, data) => setQ(data.value ?? "")}
+                            onValueChange={setQ}
+                            onSubmit={submitSearch}
                             placeholder="搜索扩展或主题"
                             size="large"
                             className="w-full"
-                            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") submitSearch(); }}
                             autoFocus
                         />
-                        <Button appearance="primary" onClick={submitSearch} className="w-full" size="large">
+                        <Button appearance="primary" onClick={() => submitSearch()} className="w-full" size="large">
                             搜索
                         </Button>
                     </div>
