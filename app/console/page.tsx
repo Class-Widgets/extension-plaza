@@ -25,6 +25,7 @@ import {
 } from "@fluentui/react-icons";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import { supabase } from "@/lib/supabase";
+import { resolvePluginBranch } from "@/lib/githubCheck";
 import { useConsoleNotifications } from "@/app/components/Layout/useConsoleNotifications";
 
 import type { AccountRole, ConsoleView, ModerationRequest, PluginForm, PluginRatingRow, PluginRow, Profile, PublishToken, TagRow } from "./types";
@@ -504,13 +505,22 @@ export default function AdminPage() {
         if (!user) return;
         setLoadingData(true);
 
+        let branch: string;
+        try {
+            branch = await resolvePluginBranch(form.repo_url, form.branch);
+        } catch (error) {
+            toastError(error instanceof Error ? error.message : String(error));
+            setLoadingData(false);
+            return;
+        }
+
         const payload = {
             id: form.id.trim(),
             owner_id: user.id,
             name: form.name.trim(),
             description: form.description.trim() || null,
             repo_url: form.repo_url.trim(),
-            branch: form.branch.trim() || "main",
+            branch,
             version: form.version.trim() || "1.0.0",
             api_version: form.api_version.trim() || null,
             readme: form.readme.trim() || "README.md",
@@ -760,6 +770,15 @@ export default function AdminPage() {
         if (!detailPlugin || !user) return;
         setLoadingData(true);
 
+        let branch: string;
+        try {
+            branch = await resolvePluginBranch(editForm.repo_url, editForm.branch);
+        } catch (error) {
+            toastError(error instanceof Error ? error.message : String(error));
+            setLoadingData(false);
+            return;
+        }
+
         const { error: updateError } = await supabase
             .schema("cw")
             .from("cw_plugins")
@@ -767,7 +786,7 @@ export default function AdminPage() {
                 name: editForm.name.trim(),
                 description: editForm.description.trim() || null,
                 repo_url: editForm.repo_url.trim(),
-                branch: editForm.branch.trim() || "main",
+                branch,
                 version: editForm.version.trim() || "1.0.0",
                 api_version: editForm.api_version.trim() || null,
                 readme: editForm.readme.trim() || "README.md",

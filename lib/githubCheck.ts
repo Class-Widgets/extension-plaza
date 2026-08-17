@@ -21,6 +21,29 @@ function parseRepoUrl(url: string): { owner: string; repo: string } | null {
     return { owner: match[1], repo: match[2].replace(/\.git$/, "") };
 }
 
+export async function resolvePluginBranch(repoUrl: string, requestedBranch: string): Promise<string> {
+    const branch = requestedBranch.trim();
+    if (branch && branch.toUpperCase() !== "HEAD") return branch;
+
+    const parsed = parseRepoUrl(repoUrl);
+    if (!parsed) {
+        throw new Error("无法解析 GitHub 仓库 URL，不能确定默认分支");
+    }
+
+    const res = await fetch(`${GITHUB_API}/repos/${parsed.owner}/${parsed.repo}`);
+    if (!res.ok) {
+        throw new Error(`无法读取仓库默认分支（${res.status}）`);
+    }
+
+    const data = await res.json() as { default_branch?: unknown };
+    const defaultBranch = typeof data.default_branch === "string" ? data.default_branch.trim() : "";
+    if (!defaultBranch || defaultBranch.toUpperCase() === "HEAD") {
+        throw new Error("仓库未返回有效的默认分支");
+    }
+
+    return defaultBranch;
+}
+
 async function checkRepoExists(owner: string, repo: string): Promise<CheckResult> {
     try {
         const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`);
