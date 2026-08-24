@@ -18,6 +18,7 @@ type PluginRow = {
     readme: string;
     icon: string;
     status: string;
+    is_certified: boolean;
     owner_id: string;
     created_at: string;
     updated_at: string;
@@ -56,6 +57,7 @@ function normalizePluginRow(row: PluginRow, displayName?: string | null) {
         readme: row.readme || "README.md",
         icon: row.icon || "icon.png",
         status: row.status,
+        is_certified: row.is_certified,
         tags,
         author: displayName || row.owner_id || "",
         owner_id: row.owner_id,
@@ -78,6 +80,7 @@ function pluginSelect() {
         readme,
         icon,
         status,
+        is_certified,
         owner_id,
         created_at,
         updated_at,

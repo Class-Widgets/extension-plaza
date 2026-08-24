@@ -1,4 +1,4 @@
-export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "allPlugins" | "ratings";
+export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "allPlugins" | "certified" | "ratings";
 export type AccountRole = "USER" | "MASTER" | "CW_MAINTAINER";
 
 export type Profile = {
@@ -24,6 +24,7 @@ export type PluginRow = {
     readme: string;
     icon: string;
     status: string;
+    is_certified: boolean;
     created_at: string;
     updated_at: string;
     tag_ids?: string[];

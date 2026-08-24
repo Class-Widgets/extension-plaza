@@ -39,6 +39,7 @@ import TokensPanel from "./components/TokensPanel";
 import ModerationPanel from "./components/ModerationPanel";
 import PluginTablePanel from "./components/PluginTablePanel";
 import RatingCommentsPanel from "./components/RatingCommentsPanel";
+import CertifiedPluginsPanel from "./components/CertifiedPluginsPanel";
 
 import TextDialog from "./components/dialogs/TextDialog";
 import ModerationActionDialog from "./components/dialogs/ModerationActionDialog";
@@ -54,6 +55,7 @@ export default function AdminPage() {
     const [view, setView] = React.useState<ConsoleView>("overview");
     const [myPlugins, setMyPlugins] = React.useState<PluginRow[]>([]);
     const [allPlugins, setAllPlugins] = React.useState<PluginRow[]>([]);
+    const [certifiedPlugins, setCertifiedPlugins] = React.useState<PluginRow[]>([]);
     const [tags, setTags] = React.useState<TagRow[]>([]);
     const [tokens, setTokens] = React.useState<PublishToken[]>([]);
     const [moderation, setModeration] = React.useState<ModerationRequest[]>([]);
@@ -65,6 +67,7 @@ export default function AdminPage() {
     const [moderationFilter, setModerationFilter] = React.useState("PENDING");
     const [pluginFilter, setPluginFilter] = React.useState("all");
     const [keyword, setKeyword] = React.useState("");
+    const [certifiedKeyword, setCertifiedKeyword] = React.useState("");
     const [ratingFilter, setRatingFilter] = React.useState("all");
     const [ratingKeyword, setRatingKeyword] = React.useState("");
     const [navOpen, setNavOpen] = React.useState(false);
@@ -106,6 +109,7 @@ export default function AdminPage() {
     const isMaintainer = allRoles.includes("CW_MAINTAINER");
     const canModerate = isMaster || isMaintainer;
     const canManageAll = isMaster;
+    const canManageCertified = canModerate;
     const canAccessConsole = Boolean(profile) || userRoles.length > 0;
     const canViewRatings = canAccessConsole;
 
@@ -183,7 +187,7 @@ export default function AdminPage() {
         const { data, error: pluginsError } = await supabase
             .schema("cw")
             .from("cw_plugins")
-            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
+            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
             .eq("owner_id", user.id)
             .order("updated_at", { ascending: false });
 
@@ -309,6 +313,7 @@ export default function AdminPage() {
                     readme,
                     icon,
                     status,
+                    is_certified,
                     created_at,
                     updated_at,
                     cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
@@ -345,7 +350,7 @@ export default function AdminPage() {
         let query = supabase
             .schema("cw")
             .from("cw_plugins")
-            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
+            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
             .order("updated_at", { ascending: false });
 
         if (pluginFilter !== "all") {
@@ -368,6 +373,34 @@ export default function AdminPage() {
 
         setLoadingData(false);
     }, [canManageAll, keyword, pluginFilter, toastError]);
+
+    const loadCertifiedPlugins = React.useCallback(async () => {
+        if (!canManageCertified) return;
+        setLoadingData(true);
+
+        let query = supabase
+            .schema("cw")
+            .from("cw_plugins")
+            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at")
+            .eq("status", "published")
+            .order("is_certified", { ascending: false })
+            .order("updated_at", { ascending: false });
+
+        const trimmedKeyword = certifiedKeyword.trim();
+        if (trimmedKeyword) {
+            query = query.or(`id.ilike.%${trimmedKeyword}%,name.ilike.%${trimmedKeyword}%`);
+        }
+
+        const { data, error: pluginsError } = await query;
+        if (pluginsError) {
+            setCertifiedPlugins([]);
+            toastError(pluginsError.message);
+        } else {
+            setCertifiedPlugins(normalizePluginRows(data || []));
+        }
+
+        setLoadingData(false);
+    }, [canManageCertified, certifiedKeyword, toastError]);
 
     const loadRatings = React.useCallback(async () => {
         if (!canViewRatings) return;
@@ -395,6 +428,7 @@ export default function AdminPage() {
                     readme,
                     icon,
                     status,
+                    is_certified,
                     created_at,
                     updated_at,
                     cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
@@ -466,10 +500,10 @@ export default function AdminPage() {
 
     React.useEffect(() => {
         if (authLoading || profileLoading || !user || !canAccessConsole) return;
-        if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll)) {
+        if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll) || (view === "certified" && !canManageCertified)) {
             router.replace("/console/redirect/forbidden");
         }
-    }, [authLoading, canAccessConsole, canManageAll, canModerate, canViewRatings, profileLoading, router, user, view]);
+    }, [authLoading, canAccessConsole, canManageAll, canManageCertified, canModerate, canViewRatings, profileLoading, router, user, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -484,7 +518,8 @@ export default function AdminPage() {
         if (view === "moderation" && canModerate) loadModeration();
         if (view === "ratings" && canViewRatings) loadRatings();
         if (view === "allPlugins" && canManageAll) loadAllPlugins();
-    }, [canModerate, canManageAll, canViewRatings, loadAllPlugins, loadModeration, loadRatings, view]);
+        if (view === "certified" && canManageCertified) loadCertifiedPlugins();
+    }, [canModerate, canManageAll, canManageCertified, canViewRatings, loadAllPlugins, loadCertifiedPlugins, loadModeration, loadRatings, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -497,9 +532,10 @@ export default function AdminPage() {
             if (view === "moderation" && canModerate) loadModeration();
             if (view === "ratings" && canViewRatings) loadRatings();
             if (view === "allPlugins" && canManageAll) loadAllPlugins();
+            if (view === "certified" && canManageCertified) loadCertifiedPlugins();
         }, 30000);
         return () => clearInterval(interval);
-    }, [user, view, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canViewRatings, loadModeration, loadRatings, loadAllPlugins]);
+    }, [user, view, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canManageCertified, canViewRatings, loadModeration, loadRatings, loadAllPlugins, loadCertifiedPlugins]);
 
     const submitPlugin = async () => {
         if (!user) return;
@@ -671,6 +707,30 @@ export default function AdminPage() {
             toastError(updateError.message);
         } else {
             await Promise.all([canManageAll ? loadAllPlugins() : Promise.resolve(), loadMyPlugins()]);
+        }
+
+        setLoadingData(false);
+    };
+
+    const updatePluginCertification = async (plugin: PluginRow, isCertified: boolean) => {
+        if (!canManageCertified) return;
+        setLoadingData(true);
+
+        const { error: updateError } = await supabase
+            .schema("cw")
+            .from("cw_plugins")
+            .update({ is_certified: isCertified, updated_at: new Date().toISOString() })
+            .eq("id", plugin.id)
+            .eq("status", "published");
+
+        if (updateError) {
+            toastError(updateError.message);
+        } else {
+            toastSuccess(isCertified ? "已设为优秀应用。" : "已取消优秀应用认证。");
+            await Promise.all([
+                loadCertifiedPlugins(),
+                canManageAll ? loadAllPlugins() : Promise.resolve(),
+            ]);
         }
 
         setLoadingData(false);
@@ -853,6 +913,7 @@ export default function AdminPage() {
                                 {notificationCounts.moderationQueue > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.moderationQueue > 99 ? "99+" : notificationCounts.moderationQueue}</Badge>}
                             </span>
                         </NavSubItem>}
+                        {canManageCertified && <NavSubItem value="certified">优秀应用评级</NavSubItem>}
                         {canManageAll && <NavSubItem value="allPlugins">全量管理</NavSubItem>}
                     </NavSubItemGroup>
                 </NavCategory>
@@ -867,6 +928,7 @@ export default function AdminPage() {
         tokens: "发布 Token",
         moderation: "审核队列",
         allPlugins: "全量管理",
+        certified: "优秀应用评级",
         ratings: "评分评论",
     };
 
@@ -907,6 +969,7 @@ export default function AdminPage() {
                     {view === "tokens" && <TokensPanel tokens={tokens} plugins={myPlugins} loading={loadingData} newToken={newToken} onCreateToken={createToken} onRevokeToken={revokeToken} onReload={loadTokens} />}
                     {view === "moderation" && canModerate && <ModerationPanel items={moderation} loading={loadingData} filter={moderationFilter} onFilterChange={setModerationFilter} onReload={loadModeration} onOpenTextDialog={openTextDialog} onOpenDetailDialog={openModerationDetailDialog} />}
                     {view === "ratings" && canViewRatings && <RatingCommentsPanel items={ratings} loading={loadingData} ratingFilter={ratingFilter} keyword={ratingKeyword} onRatingFilterChange={setRatingFilter} onKeywordChange={setRatingKeyword} onReload={loadRatings} onOpenTextDialog={openTextDialog} />}
+                    {view === "certified" && canManageCertified && <CertifiedPluginsPanel plugins={certifiedPlugins} loading={loadingData} keyword={certifiedKeyword} onKeywordChange={setCertifiedKeyword} onReload={loadCertifiedPlugins} onCertifiedChange={updatePluginCertification} />}
                     {view === "allPlugins" && canManageAll && <PluginTablePanel title="全量插件管理" plugins={allPlugins} loading={loadingData} filter={pluginFilter} keyword={keyword} readonly={false} onFilterChange={setPluginFilter} onKeywordChange={setKeyword} onReload={loadAllPlugins} onStatusChange={updatePluginStatus} onOpenDetail={openDetailDialog} />}
 
                     <PluginDetailDialog

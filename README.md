@@ -48,12 +48,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | 6 | GET | `/api/plugins/category` | 按标签筛选插件 |
 | 7 | GET | `/api/plugins/latest` | 最新插件 |
 | 8 | GET | `/api/plugins/popular` | 热门插件 |
-| 9 | GET | `/api/plugins/[pluginId]/resources/icon` | 插件图标 |
-| 10 | GET | `/api/plugins/[pluginId]/resources/manifest` | 插件清单 |
-| 11 | GET | `/api/plugins/[pluginId]/resources/readme` | 插件 README |
-| 12 | GET | `/api/plugins/[pluginId]/resources/release` | 插件发布包（重定向） |
-| 13 | POST | `/api/plugins/[pluginId]/publish` | 发布 / 更新插件（代理 Edge Function） |
-| 14 | GET | `/api/authors/[authorId]` | 作者信息及投稿插件 |
+| 9 | GET | `/api/plugins/certified` | 已认证插件 |
+| 10 | GET | `/api/plugins/[pluginId]/resources/icon` | 插件图标 |
+| 11 | GET | `/api/plugins/[pluginId]/resources/manifest` | 插件清单 |
+| 12 | GET | `/api/plugins/[pluginId]/resources/readme` | 插件 README |
+| 13 | GET | `/api/plugins/[pluginId]/resources/release` | 插件发布包（重定向） |
+| 14 | POST | `/api/plugins/[pluginId]/publish` | 发布 / 更新插件（代理 Edge Function） |
+| 15 | GET | `/api/authors/[authorId]` | 作者信息及投稿插件 |
 
 ### 通用查询参数
 
@@ -133,6 +134,7 @@ curl "http://localhost:3000/api/plugins?page=1&per_page=20"
       "readme": "README.md",
       "icon": "icon.png",
       "status": "published",
+      "is_certified": true,
       "tags": [{"id": "tag_id", "name": "标签名称"}, {"id": "tools", "name": "工具"}],
       "author": "owner",
       "created": "2026-01-01T00:00:00.000Z",
@@ -434,9 +436,54 @@ curl "http://localhost:3000/api/plugins/popular?limit=5"
 }
 ```
 
-## 9. 插件资源 API
+## 9. 已认证插件 API
 
-### 9.1 插件图标
+`GET /api/plugins/certified`
+
+获取数据库中 `is_certified = true` 且状态为 `published` 的插件。结果按平均评分降序排列；平均评分相同时按 GitHub Release 资源的下载量降序排列；下载量仍相同时按评分人数降序排列。
+
+下载量通过插件的 `repo_url` 查询 GitHub Releases 及其 assets 的 `download_count` 汇总得到。如果 GitHub 下载量查询失败或仓库没有可统计的 release，下载量按 `0` 处理，因此只作为评分相同时的 fallback 排序依据。下载统计会在服务端缓存 30 分钟。
+
+**参数**
+
+| 参数名 | 类型 | 描述 | 默认值 |
+|-------|------|------|--------|
+| `limit` | number | 返回数量，范围 `1` - `50` | `10` |
+| `no-mirror` | boolean | 是否禁用镜像服务（当前接口保留该兼容参数） | `false` |
+
+**调用示例**
+
+```bash
+curl "http://localhost:3000/api/plugins/certified?limit=10"
+```
+
+**返回范例**
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "id": "com.classwidgets.example-plugin",
+      "name": "示例插件",
+      "status": "published",
+      "is_certified": true,
+      "certified": true,
+      "rating_count": 12,
+      "rating_average": 4.75,
+      "downloads": 320
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "limit": 10
+  }
+}
+```
+
+## 10. 插件资源 API
+
+### 10.1 插件图标
 
 `GET /api/plugins/[pluginId]/resources/icon`
 
@@ -446,7 +493,7 @@ curl "http://localhost:3000/api/plugins/popular?limit=5"
 curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/icon" -o icon.png
 ```
 
-### 9.2 插件清单
+### 10.2 插件清单
 
 `GET /api/plugins/[pluginId]/resources/manifest`
 
@@ -465,7 +512,7 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/manifest"
 }
 ```
 
-### 9.3 插件 README
+### 10.3 插件 README
 
 `GET /api/plugins/[pluginId]/resources/readme`
 
@@ -475,7 +522,7 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/manifest"
 curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/readme"
 ```
 
-### 9.4 获取插件发布包
+### 10.4 获取插件发布包
 
 `GET /api/plugins/[pluginId]/resources/release`
 
@@ -489,7 +536,7 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget/resources/readme"
 curl -L "http://localhost:3000/api/plugins/com.classwidgets.example-plugin/resources/release?format=zip" -o example-plugin.zip
 ```
 
-## 10. 发布 / 更新插件 API
+## 11. 发布 / 更新插件 API
 
 `POST /api/plugins/[pluginId]/publish`
 
@@ -599,7 +646,7 @@ curl -X POST "http://localhost:3000/api/plugins/chatgpt-widget/publish" \
 
 ---
 
-## 11. 作者信息 API
+## 12. 作者信息 API
 
 `GET /api/authors/[authorId]`
 
