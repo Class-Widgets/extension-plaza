@@ -48,7 +48,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | 6 | GET | `/api/plugins/category` | 按标签筛选插件 |
 | 7 | GET | `/api/plugins/latest` | 最新插件 |
 | 8 | GET | `/api/plugins/popular` | 热门插件 |
-| 9 | GET | `/api/plugins/certified` | 已认证插件 |
+| 9 | GET | `/api/plugins/certified` | 优秀插件认证列表 |
 | 10 | GET | `/api/plugins/[pluginId]/resources/icon` | 插件图标 |
 | 11 | GET | `/api/plugins/[pluginId]/resources/manifest` | 插件清单 |
 | 12 | GET | `/api/plugins/[pluginId]/resources/readme` | 插件 README |
@@ -436,11 +436,11 @@ curl "http://localhost:3000/api/plugins/popular?limit=5"
 }
 ```
 
-## 9. 已认证插件 API
+## 9. 优秀插件认证 API
 
 `GET /api/plugins/certified`
 
-获取数据库中 `is_certified = true` 且状态为 `published` 的插件。结果按平均评分降序排列；平均评分相同时按 GitHub Release 资源的下载量降序排列；下载量仍相同时按评分人数降序排列。
+获取数据库中被标记为优秀插件认证（`is_certified = true`）且状态为 `published` 的插件。该字段表示优秀插件推荐，不代表审核状态，也不属于审核系统。结果按平均评分降序排列；平均评分相同时按 GitHub Release 资源的下载量降序排列；下载量仍相同时按评分人数降序排列。
 
 下载量通过插件的 `repo_url` 查询 GitHub Releases 及其 assets 的 `download_count` 汇总得到。如果 GitHub 下载量查询失败或仓库没有可统计的 release，下载量按 `0` 处理，因此只作为评分相同时的 fallback 排序依据。下载统计会在服务端缓存 30 分钟。
 
