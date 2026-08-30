@@ -125,22 +125,11 @@ export default function AdminPage() {
     };
 
     const syncPluginTags = React.useCallback(async (pluginId: string, tagIds: string[]) => {
-        const { error: deleteError } = await supabase
-            .schema("cw")
-            .from("cw_plugin_item_tags")
-            .delete()
-            .eq("plugin_id", pluginId);
-
-        if (deleteError) return deleteError;
-        const normalizedTagIds = Array.from(new Set(tagIds.filter(Boolean)));
-        if (normalizedTagIds.length === 0) return null;
-
-        const { error: insertError } = await supabase
-            .schema("cw")
-            .from("cw_plugin_item_tags")
-            .insert(normalizedTagIds.map((tagId) => ({ plugin_id: pluginId, tag_id: tagId })));
-
-        return insertError;
+        const { error } = await supabase.schema("cw").rpc("sync_plugin_tags", {
+            p_plugin_id: pluginId,
+            p_tag_ids: Array.from(new Set(tagIds.filter(Boolean))),
+        });
+        return error;
     }, []);
 
     const loadProfile = React.useCallback(async () => {
@@ -226,10 +215,7 @@ export default function AdminPage() {
 
         const { data, error: tokensError } = await supabase
             .schema("cw")
-            .from("cw_publish_tokens")
-            .select("id, owner_id, name, scope_plugin_id, created_at, last_used_at, expires_at, revoked")
-            .eq("owner_id", user.id)
-            .order("created_at", { ascending: false });
+            .rpc("list_my_publish_tokens");
 
         if (tokensError) {
             setTokens([]);
@@ -646,7 +632,12 @@ export default function AdminPage() {
         if (expiresAt) {
             insertData.expires_at = new Date(expiresAt).toISOString();
         }
-        const { error: tokenError } = await supabase.schema("cw").from("cw_publish_tokens").insert(insertData);
+        const { error: tokenError } = await supabase.schema("cw").rpc("create_publish_token", {
+            p_name: name.trim(),
+            p_token_hash: tokenHash,
+            p_scope_plugin_id: scopePluginId || null,
+            p_expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        });
 
         if (tokenError) {
             toastError(tokenError.message);
@@ -662,11 +653,9 @@ export default function AdminPage() {
     const revokeToken = async (token: PublishToken) => {
         setLoadingData(true);
 
-        const { error: tokenError } = await supabase
-            .schema("cw")
-            .from("cw_publish_tokens")
-            .update({ revoked: true })
-            .eq("id", token.id);
+        const { error: tokenError } = await supabase.schema("cw").rpc("revoke_publish_token", {
+            p_token_id: token.id,
+        });
 
         if (tokenError) {
             toastError(tokenError.message);
@@ -768,32 +757,13 @@ export default function AdminPage() {
         if (!user) return;
         setLoadingData(true);
 
-        const { error: pluginError } = await supabase
-            .schema("cw")
-            .from("cw_plugins")
-            .update({ status: "pending", updated_at: new Date().toISOString() })
-            .eq("id", pluginId)
-            .eq("owner_id", user.id);
+        const { error: resubmitError } = await supabase.schema("cw").rpc("resubmit_plugin", {
+            p_plugin_id: pluginId,
+            p_reason: resubmitReason.trim() || null,
+        });
 
-        if (pluginError) {
-            toastError(pluginError.message);
-            setLoadingData(false);
-            return;
-        }
-
-        const { error: requestError } = await supabase
-            .schema("cw")
-            .from("cw_plugins_moderation_requests")
-            .insert({
-                plugin_id: pluginId,
-                user_id: user.id,
-                request_type: "SUBMISSION",
-                reason: resubmitReason.trim() || null,
-                status: "PENDING",
-            });
-
-        if (requestError) {
-            toastError(`重新提交失败：${requestError.message}`);
+        if (resubmitError) {
+            toastError(resubmitError.message);
             setLoadingData(false);
             return;
         }

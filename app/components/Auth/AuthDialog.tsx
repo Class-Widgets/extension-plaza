@@ -41,16 +41,86 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
     );
 }
 
-function translateError(error: { message?: string } | null): string {
-    if (!error || !error.message) return "发生未知错误，请稍后重试";
-    const msg = error.message.toLowerCase();
-    if (msg.includes("invalid login credentials")) return "邮箱或密码错误";
-    if (msg.includes("email not confirmed")) return "邮箱尚未验证，请先验证邮箱";
-    if (msg.includes("rate limit") || msg.includes("too many")) return "操作过于频繁，请稍后再试";
-    if (msg.includes("user already registered")) return "该邮箱已注册";
-    if (msg.includes("token has expired") || (msg.includes("invalid") && msg.includes("otp"))) return "验证码无效或已过期";
-    if (msg.includes("network")) return "网络连接异常，请检查网络";
-    return error.message;
+/** 检查字符串是否为无意义的占位符，如 "{}"、"[]"、"null" 等 */
+function isEmptyMessage(msg: string): boolean {
+    const trimmed = msg.trim();
+    return trimmed === "{}" || trimmed === "[]" || trimmed === "null" || trimmed === "";
+}
+
+/** Supabase Auth 错误码到中文消息的映射 */
+const ERROR_CODE_MAP: Record<string, string> = {
+    invalid_credentials: "邮箱或密码错误",
+    email_not_confirmed: "邮箱尚未验证，请先验证邮箱",
+    rate_limit_exceeded: "操作过于频繁，请稍后再试",
+    user_already_registered: "该邮箱已注册",
+    otp_expired: "验证码已过期，请重新发送",
+    invalid_otp: "验证码无效",
+    email_address_not_authorized: "发送邮件受限：请在 Supabase 中配置自定义 SMTP 或确保收件人在组织成员列表中",
+    email_address_invalid: "邮箱格式不正确或为不支持的测试域名",
+    captcha_failed: "人机验证失败，请重试",
+    bad_jwt: "登录状态异常，请重新登录",
+    bad_oauth_state: "登录状态已失效，请重新登录",
+    not_implemented: "该功能未启用，请联系管理员",
+    session_not_found: "登录会话已过期，请重新登录",
+    unexpected_failure: "服务暂时不可用，请稍后重试",
+};
+
+/** 兼容 auth-js 各种 AuthError 子类的结构类型 */
+type AuthErrorLike = {
+    message?: string;
+    code?: string;
+    name?: string;
+    status?: number;
+    originalError?: unknown;
+};
+
+function translateError(error: unknown): string {
+    if (!error || typeof error !== "object") return "发生未知错误，请稍后重试";
+    const e = error as Record<string, unknown>;
+
+    // 1. 优先使用错误码映射（AuthApiError 包含有意义的 code）
+    const code = e.code as string | undefined;
+    if (code && ERROR_CODE_MAP[code]) {
+        return ERROR_CODE_MAP[code];
+    }
+
+    // 2. 如果 message 有效且有意义，使用它
+    const rawMsg = (e.message as string | undefined)?.trim() ?? "";
+    if (rawMsg && !isEmptyMessage(rawMsg)) {
+        const msgLower = rawMsg.toLowerCase();
+        // 旧的 message 关键词匹配（兼容 auth-js 返回纯字符串 message 的场景）
+        if (msgLower.includes("invalid login credentials")) return "邮箱或密码错误";
+        if (msgLower.includes("email not confirmed")) return "邮箱尚未验证，请先验证邮箱";
+        if (msgLower.includes("rate limit") || msgLower.includes("too many")) return "操作过于频繁，请稍后再试";
+        if (msgLower.includes("user already registered")) return "该邮箱已注册";
+        if (msgLower.includes("token has expired") || (msgLower.includes("invalid") && msgLower.includes("otp"))) return "验证码无效或已过期";
+        if (msgLower.includes("network")) return "网络连接异常，请检查网络";
+        if (msgLower.includes("not authorized") || msgLower.includes("smtp")) return "发送邮件受限，请检查 Supabase SMTP 配置";
+        if (msgLower.includes("fetch") || msgLower.includes("networkerror")) return "网络连接异常，请检查网络";
+        return rawMsg;
+    }
+
+    // 3. message 无意义（如 "{}"），尝试用 error.name 推断
+    const name = e.name as string | undefined;
+    if (name === "AuthUnknownError") {
+        // 尝试从 originalError 中提取
+        const orig = e.originalError as Record<string, unknown> | undefined;
+        if (orig && typeof orig === "object") {
+            const origMsg = (orig.message as string | undefined)?.trim() ?? "";
+            if (origMsg && !isEmptyMessage(origMsg)) return origMsg;
+            const origCode = orig.code as string | undefined;
+            if (origCode && ERROR_CODE_MAP[origCode]) return ERROR_CODE_MAP[origCode];
+        }
+        return "服务暂时不可用，请稍后重试（AuthUnknownError）";
+    }
+
+    if (name === "AuthRetryableFetchError") {
+        return "网络连接异常或服务暂时不可用，请稍后重试";
+    }
+
+    // 4. 最后兜底
+    if (code && ERROR_CODE_MAP[code]) return ERROR_CODE_MAP[code];
+    return "发生未知错误，请稍后重试";
 }
 
 // 居中的邮箱回显，点击可返回邮箱输入步骤
