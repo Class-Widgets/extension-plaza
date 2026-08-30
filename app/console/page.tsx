@@ -124,11 +124,7 @@ export default function AdminPage() {
         setForm((current) => ({ ...current, [field]: value }));
     };
 
-    const syncPluginTags = React.useCallback(async (pluginId: string, tagIds: string[], tagDictionary?: TagRow[]) => {
-        // 关键防御：拒绝任何非 UUID 格式的值进入 cw_plugin_item_tags.tag_id（在真实 DB 中该列为 uuid 类型）
-        // 防止出现 invalid input syntax for type uuid: "com.xxx.yyy" 错误
-        const normalizedTagIds = sanitizeTagIds(tagIds, tagDictionary);
-
+    const syncPluginTags = React.useCallback(async (pluginId: string, tagIds: string[]) => {
         const { error: deleteError } = await supabase
             .schema("cw")
             .from("cw_plugin_item_tags")
@@ -136,6 +132,7 @@ export default function AdminPage() {
             .eq("plugin_id", pluginId);
 
         if (deleteError) return deleteError;
+        const normalizedTagIds = Array.from(new Set(tagIds.filter(Boolean)));
         if (normalizedTagIds.length === 0) return null;
 
         const { error: insertError } = await supabase
@@ -197,24 +194,7 @@ export default function AdminPage() {
             .eq("owner_id", user.id)
             .order("updated_at", { ascending: false });
 
-        let result = await query;
-
-        // 关键修复：如果带标签 JOIN 的查询因 UUID cast 错误崩溃（历史脏行），
-        // 先做一次不带 JOIN 的查询拿到 pluginId 列表，强制 purge 每一个的 tag 脏行，再重试 JOIN 查询。
-        if (result.error && isUuidCastError(result.error)) {
-            const fallback = await supabase
-                .schema("cw")
-                .from("cw_plugins")
-                .select(PLUGIN_SELECT_COLUMNS)
-                .eq("owner_id", user.id)
-                .order("updated_at", { ascending: false });
-
-            if (!fallback.error) {
-                const ids = (fallback.data || []).map((p: any) => p.id).filter(Boolean);
-                await purgePluginTagLinksMany(supabase, ids);
-                result = await query;
-            }
-        }
+        const result = await query;
 
         if (result.error) {
             setMyPlugins([]);
@@ -363,23 +343,7 @@ export default function AdminPage() {
             query = query.eq("status", moderationFilter);
         }
 
-        let result = await query;
-
-        // 关键修复：UUID cast 错误时 fallback 到不带嵌套JOIN的查询 → purge 脏行 → 重试
-        if (result.error && isUuidCastError(result.error)) {
-            let fb = supabase
-                .schema("cw")
-                .from("cw_plugins_moderation_requests")
-                .select(moderationBaseColumns)
-                .order("created_at", { ascending: false });
-            if (moderationFilter !== "all") fb = fb.eq("status", moderationFilter);
-            const fallback = await fb;
-            if (!fallback.error) {
-                const pluginIds = (fallback.data || []).map((r: any) => r.plugin_id).filter(Boolean);
-                await purgePluginTagLinksMany(supabase, pluginIds);
-                result = await query;
-            }
-        }
+        const result = await query;
 
         if (result.error) {
             setModeration([]);
@@ -416,24 +380,7 @@ export default function AdminPage() {
             query = query.or(`id.ilike.%${trimmedKeyword}%,name.ilike.%${trimmedKeyword}%`);
         }
 
-        let result = await query;
-
-        // 关键修复：UUID cast 错误时 fallback 到不带 JOIN 的查询 → purge 脏行 → 重试
-        if (result.error && isUuidCastError(result.error)) {
-            let fb = supabase
-                .schema("cw")
-                .from("cw_plugins")
-                .select(PLUGIN_SELECT_COLUMNS)
-                .order("updated_at", { ascending: false });
-            if (pluginFilter !== "all") fb = fb.eq("status", pluginFilter);
-            if (trimmedKeyword) fb = fb.or(`id.ilike.%${trimmedKeyword}%,name.ilike.%${trimmedKeyword}%`);
-            const fallback = await fb;
-            if (!fallback.error) {
-                const ids = (fallback.data || []).map((p: any) => p.id).filter(Boolean);
-                await purgePluginTagLinksMany(supabase, ids);
-                result = await query;
-            }
-        }
+        const result = await query;
 
         if (result.error) {
             setAllPlugins([]);
@@ -521,23 +468,7 @@ export default function AdminPage() {
             query = query.eq("rating", Number(ratingFilter));
         }
 
-        let result = await query;
-
-        // 关键修复：UUID cast 错误时 fallback → purge 脏行 → 重试
-        if (result.error && isUuidCastError(result.error)) {
-            let fb = supabase
-                .schema("cw")
-                .from("cw_plugins_rating")
-                .select(ratingBaseColumns)
-                .order("updated_at", { ascending: false });
-            if (ratingFilter !== "all") fb = fb.eq("rating", Number(ratingFilter));
-            const fallback = await fb;
-            if (!fallback.error) {
-                const pluginIds = (fallback.data || []).map((r: any) => r.plugin_id).filter(Boolean);
-                await purgePluginTagLinksMany(supabase, Array.from(new Set(pluginIds)));
-                result = await query;
-            }
-        }
+        const result = await query;
 
         if (result.error) {
             setRatings([]);
