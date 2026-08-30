@@ -124,8 +124,11 @@ export default function AdminPage() {
         setForm((current) => ({ ...current, [field]: value }));
     };
 
-    const syncPluginTags = React.useCallback(async (pluginId: string, tagIds: string[]) => {
-        const normalizedTagIds = Array.from(new Set(tagIds.filter(Boolean)));
+    const syncPluginTags = React.useCallback(async (pluginId: string, tagIds: string[], tagDictionary?: TagRow[]) => {
+        // 关键防御：拒绝任何非 UUID 格式的值进入 cw_plugin_item_tags.tag_id（在真实 DB 中该列为 uuid 类型）
+        // 防止出现 invalid input syntax for type uuid: "com.xxx.yyy" 错误
+        const normalizedTagIds = sanitizeTagIds(tagIds, tagDictionary);
+
         const { error: deleteError } = await supabase
             .schema("cw")
             .from("cw_plugin_item_tags")
@@ -180,22 +183,44 @@ export default function AdminPage() {
         setProfileLoading(false);
     }, [toastError, user]);
 
+    const PLUGIN_SELECT_COLUMNS = "id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at";
+    const PLUGIN_WITH_TAGS_SELECT = `${PLUGIN_SELECT_COLUMNS}, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))`;
+
     const loadMyPlugins = React.useCallback(async () => {
         if (!user) return;
         setLoadingData(true);
 
-        const { data, error: pluginsError } = await supabase
+        let query = supabase
             .schema("cw")
             .from("cw_plugins")
-            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
+            .select(PLUGIN_WITH_TAGS_SELECT)
             .eq("owner_id", user.id)
             .order("updated_at", { ascending: false });
 
-        if (pluginsError) {
+        let result = await query;
+
+        // 关键修复：如果带标签 JOIN 的查询因 UUID cast 错误崩溃（历史脏行），
+        // 先做一次不带 JOIN 的查询拿到 pluginId 列表，强制 purge 每一个的 tag 脏行，再重试 JOIN 查询。
+        if (result.error && isUuidCastError(result.error)) {
+            const fallback = await supabase
+                .schema("cw")
+                .from("cw_plugins")
+                .select(PLUGIN_SELECT_COLUMNS)
+                .eq("owner_id", user.id)
+                .order("updated_at", { ascending: false });
+
+            if (!fallback.error) {
+                const ids = (fallback.data || []).map((p: any) => p.id).filter(Boolean);
+                await purgePluginTagLinksMany(supabase, ids);
+                result = await query;
+            }
+        }
+
+        if (result.error) {
             setMyPlugins([]);
-            toastError(pluginsError.message);
+            toastError(result.error.message);
         } else {
-            setMyPlugins(normalizePluginRows(data || []));
+            setMyPlugins(normalizePluginRows(result.data || []));
         }
 
         setLoadingData(false);
@@ -288,50 +313,79 @@ export default function AdminPage() {
         if (!canModerate) return;
         setLoadingData(true);
 
+        const moderationBaseColumns = `
+            id,
+            plugin_id,
+            user_id,
+            request_type,
+            reason,
+            decided_reason,
+            status,
+            created_at,
+            decided_at
+        `;
+        const moderationWithPluginsTagsSelect = `
+            id,
+            plugin_id,
+            user_id,
+            request_type,
+            reason,
+            decided_reason,
+            status,
+            created_at,
+            decided_at,
+            cw_plugins(
+                id,
+                owner_id,
+                name,
+                description,
+                repo_url,
+                branch,
+                version,
+                api_version,
+                readme,
+                icon,
+                status,
+                is_certified,
+                created_at,
+                updated_at,
+                cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
+            )
+        `;
+
         let query = supabase
             .schema("cw")
             .from("cw_plugins_moderation_requests")
-            .select(`
-                id,
-                plugin_id,
-                user_id,
-                request_type,
-                reason,
-                decided_reason,
-                status,
-                created_at,
-                decided_at,
-                cw_plugins(
-                    id,
-                    owner_id,
-                    name,
-                    description,
-                    repo_url,
-                    branch,
-                    version,
-                    api_version,
-                    readme,
-                    icon,
-                    status,
-                    is_certified,
-                    created_at,
-                    updated_at,
-                    cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
-                )
-            `)
+            .select(moderationWithPluginsTagsSelect)
             .order("created_at", { ascending: false });
 
         if (moderationFilter !== "all") {
             query = query.eq("status", moderationFilter);
         }
 
-        const { data, error: moderationError } = await query;
+        let result = await query;
 
-        if (moderationError) {
+        // 关键修复：UUID cast 错误时 fallback 到不带嵌套JOIN的查询 → purge 脏行 → 重试
+        if (result.error && isUuidCastError(result.error)) {
+            let fb = supabase
+                .schema("cw")
+                .from("cw_plugins_moderation_requests")
+                .select(moderationBaseColumns)
+                .order("created_at", { ascending: false });
+            if (moderationFilter !== "all") fb = fb.eq("status", moderationFilter);
+            const fallback = await fb;
+            if (!fallback.error) {
+                const pluginIds = (fallback.data || []).map((r: any) => r.plugin_id).filter(Boolean);
+                await purgePluginTagLinksMany(supabase, pluginIds);
+                result = await query;
+            }
+        }
+
+        if (result.error) {
             setModeration([]);
-            toastError(moderationError.message);
+            toastError(result.error.message);
         } else {
-            setModeration((data || []).map((item) => {
+            setModeration((result.data || []).map((item) => {
                 const request = item as ModerationRequest;
                 const pluginValue = request.cw_plugins;
                 if (Array.isArray(pluginValue)) return { ...request, cw_plugins: normalizePluginRows(pluginValue) };
@@ -350,7 +404,7 @@ export default function AdminPage() {
         let query = supabase
             .schema("cw")
             .from("cw_plugins")
-            .select("id, owner_id, name, description, repo_url, branch, version, api_version, readme, icon, status, is_certified, created_at, updated_at, cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))")
+            .select(PLUGIN_WITH_TAGS_SELECT)
             .order("updated_at", { ascending: false });
 
         if (pluginFilter !== "all") {
@@ -362,13 +416,30 @@ export default function AdminPage() {
             query = query.or(`id.ilike.%${trimmedKeyword}%,name.ilike.%${trimmedKeyword}%`);
         }
 
-        const { data, error: pluginsError } = await query;
+        let result = await query;
 
-        if (pluginsError) {
+        // 关键修复：UUID cast 错误时 fallback 到不带 JOIN 的查询 → purge 脏行 → 重试
+        if (result.error && isUuidCastError(result.error)) {
+            let fb = supabase
+                .schema("cw")
+                .from("cw_plugins")
+                .select(PLUGIN_SELECT_COLUMNS)
+                .order("updated_at", { ascending: false });
+            if (pluginFilter !== "all") fb = fb.eq("status", pluginFilter);
+            if (trimmedKeyword) fb = fb.or(`id.ilike.%${trimmedKeyword}%,name.ilike.%${trimmedKeyword}%`);
+            const fallback = await fb;
+            if (!fallback.error) {
+                const ids = (fallback.data || []).map((p: any) => p.id).filter(Boolean);
+                await purgePluginTagLinksMany(supabase, ids);
+                result = await query;
+            }
+        }
+
+        if (result.error) {
             setAllPlugins([]);
-            toastError(pluginsError.message);
+            toastError(result.error.message);
         } else {
-            setAllPlugins(normalizePluginRows(data || []));
+            setAllPlugins(normalizePluginRows(result.data || []));
         }
 
         setLoadingData(false);
@@ -406,50 +477,76 @@ export default function AdminPage() {
         if (!canViewRatings) return;
         setLoadingData(true);
 
+        const ratingBaseColumns = `
+            plugin_id,
+            user_id,
+            rating,
+            comment,
+            created_at,
+            updated_at
+        `;
+        const ratingWithPluginTagsSelect = `
+            plugin_id,
+            user_id,
+            rating,
+            comment,
+            created_at,
+            updated_at,
+            cw_plugins(
+                id,
+                owner_id,
+                name,
+                description,
+                repo_url,
+                branch,
+                version,
+                api_version,
+                readme,
+                icon,
+                status,
+                is_certified,
+                created_at,
+                updated_at,
+                cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
+            )
+        `;
+
         let query = supabase
             .schema("cw")
             .from("cw_plugins_rating")
-            .select(`
-                plugin_id,
-                user_id,
-                rating,
-                comment,
-                created_at,
-                updated_at,
-                cw_plugins(
-                    id,
-                    owner_id,
-                    name,
-                    description,
-                    repo_url,
-                    branch,
-                    version,
-                    api_version,
-                    readme,
-                    icon,
-                    status,
-                    is_certified,
-                    created_at,
-                    updated_at,
-                    cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
-                )
-            `)
+            .select(ratingWithPluginTagsSelect)
             .order("updated_at", { ascending: false });
 
         if (ratingFilter !== "all") {
             query = query.eq("rating", Number(ratingFilter));
         }
 
-        const { data, error: ratingsError } = await query;
+        let result = await query;
 
-        if (ratingsError) {
+        // 关键修复：UUID cast 错误时 fallback → purge 脏行 → 重试
+        if (result.error && isUuidCastError(result.error)) {
+            let fb = supabase
+                .schema("cw")
+                .from("cw_plugins_rating")
+                .select(ratingBaseColumns)
+                .order("updated_at", { ascending: false });
+            if (ratingFilter !== "all") fb = fb.eq("rating", Number(ratingFilter));
+            const fallback = await fb;
+            if (!fallback.error) {
+                const pluginIds = (fallback.data || []).map((r: any) => r.plugin_id).filter(Boolean);
+                await purgePluginTagLinksMany(supabase, Array.from(new Set(pluginIds)));
+                result = await query;
+            }
+        }
+
+        if (result.error) {
             setRatings([]);
-            toastError(ratingsError.message);
+            toastError(result.error.message);
             setLoadingData(false);
             return;
         }
 
-        const rows = (data || []).map((item) => {
+        const rows = (result.data || []).map((item) => {
             const rating = item as PluginRatingRow;
             const pluginValue = rating.cw_plugins;
             if (Array.isArray(pluginValue)) return { ...rating, cw_plugins: normalizePluginRows(pluginValue) };
@@ -787,6 +884,8 @@ export default function AdminPage() {
         const pluginRequests = myModerationRequests.filter((r) => r.plugin_id === plugin.id);
         setDetailPlugin(plugin);
         setDetailRequests(pluginRequests);
+        // 关键防御：打开编辑表单时，使用 tags 字典对 plugin.tag_ids 做交叉校验
+        // 只保留合法的、在标签字典中真实存在的 UUID，避免后续保存时把包名字符串误写入 tag_id 列
         setEditForm({
             id: plugin.id,
             name: plugin.name,
@@ -839,32 +938,21 @@ export default function AdminPage() {
             return;
         }
 
-        const { error: updateError } = await supabase
-            .schema("cw")
-            .from("cw_plugins")
-            .update({
-                name: editForm.name.trim(),
-                description: editForm.description.trim() || null,
-                repo_url: editForm.repo_url.trim(),
-                branch,
-                version: editForm.version.trim() || "1.0.0",
-                api_version: editForm.api_version.trim() || null,
-                readme: editForm.readme.trim() || "README.md",
-                icon: editForm.icon.trim() || "icon.png",
-                updated_at: new Date().toISOString(),
-            })
-            .eq("id", detailPlugin.id);
+        const { error: updateError } = await supabase.schema("cw").rpc("update_plugin_details", {
+            p_plugin_id: detailPlugin.id,
+            p_name: editForm.name.trim(),
+            p_description: editForm.description.trim(),
+            p_repo_url: editForm.repo_url.trim(),
+            p_branch: branch,
+            p_version: editForm.version.trim() || "1.0.0",
+            p_api_version: editForm.api_version.trim(),
+            p_readme: editForm.readme.trim() || "README.md",
+            p_icon: editForm.icon.trim() || "icon.png",
+            p_tag_ids: Array.from(new Set(editForm.tag_ids.filter(Boolean))),
+        });
 
         if (updateError) {
             toastError(updateError.message);
-            setLoadingData(false);
-            return;
-        }
-
-        const tagError = await syncPluginTags(detailPlugin.id, editForm.tag_ids);
-
-        if (tagError) {
-            toastError(tagError.message);
             setLoadingData(false);
             return;
         }
