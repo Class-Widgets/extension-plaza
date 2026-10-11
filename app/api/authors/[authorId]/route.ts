@@ -1,6 +1,7 @@
 // app/api/authors/[authorId]/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ authorId: string }> }) {
     const { authorId } = await ctx.params;
@@ -82,7 +83,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ authorId: stri
                 plugins: items,
                 total_plugins: items.length,
             },
-        });
+        }, { headers: PUBLIC_CACHE_HEADERS() });
     } catch (err) {
         return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
     }

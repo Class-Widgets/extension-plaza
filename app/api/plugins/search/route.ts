@@ -1,6 +1,7 @@
 // app/api/plugins/search/route.ts
 import { NextResponse } from 'next/server';
 import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +17,10 @@ export async function GET(req: Request) {
     const ratingStats = await getPluginRatingStats(manifests.map((m: any) => m.id));
     const downloadStats = await getPluginDownloadStats(manifests);
     if (!q) {
-      return NextResponse.json({ ok: true, data: [], meta: { total: 0, page, per_page: perPage, total_pages: 1 } });
+      return NextResponse.json(
+        { ok: true, data: [], meta: { total: 0, page, per_page: perPage, total_pages: 1 } },
+        { headers: PUBLIC_CACHE_HEADERS() },
+      );
     }
 
     const results = manifests.filter((m: any) => {
@@ -57,7 +61,7 @@ export async function GET(req: Request) {
       ok: true,
       data: pageItems,
       meta: { total, page: Math.min(page, totalPages), per_page: perPage, total_pages: totalPages },
-    });
+    }, { headers: PUBLIC_CACHE_HEADERS() });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

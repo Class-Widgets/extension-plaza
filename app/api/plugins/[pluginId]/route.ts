@@ -1,6 +1,7 @@
 // app/api/plugins/[pluginId]/route.ts
 import { NextResponse } from 'next/server';
 import { getPluginManifest } from '@/lib/pluginUtils';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     try {
@@ -19,10 +20,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
             }
         };
         
-        return NextResponse.json({ 
-            ok: true, 
-            data: pluginDetails 
-        });
+        return NextResponse.json({
+            ok: true,
+            data: pluginDetails
+        }, { headers: PUBLIC_CACHE_HEADERS() });
     } catch (err: any) {
         return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
     }

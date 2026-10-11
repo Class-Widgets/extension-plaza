@@ -1,6 +1,7 @@
 // app/api/plugins/popular/route.ts
 import { NextResponse } from 'next/server';
 import { getPluginDownloadStats, getPluginManifests, getPluginRatingStats } from '@/lib/pluginUtils';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
 
 export async function GET(req: Request) {
     try {
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
                 total: manifests.length,
                 limit: limit,
             },
-        });
+        }, { headers: PUBLIC_CACHE_HEADERS() });
     } catch (err) {
         return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
     }

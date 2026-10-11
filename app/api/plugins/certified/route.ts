@@ -4,6 +4,7 @@ import {
     getPluginManifests,
     getPluginRatingStats,
 } from '@/lib/pluginUtils';
+import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
@@ -58,7 +59,7 @@ export async function GET(req: Request) {
                 total: sorted.length,
                 limit,
             },
-        });
+        }, { headers: PUBLIC_CACHE_HEADERS() });
     } catch (error) {
         return NextResponse.json(
             { ok: false, error: String(error) },

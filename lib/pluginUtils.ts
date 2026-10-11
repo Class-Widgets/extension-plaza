@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 
 // GitHub存储库配置
@@ -36,6 +37,9 @@ type BannerSlide = {
 
 const downloadCache = new Map<string, { count: number; expiresAt: number }>();
 const DOWNLOAD_CACHE_TTL = 30 * 60 * 1000;
+
+// 插件列表相关数据层的统一缓存标签（写入插件后可用 revalidateTag 主动失效）。
+export const PLUGIN_LIST_CACHE_TAG = 'cw:plugins';
 
 function normalizePluginRow(row: PluginRow, displayName?: string | null) {
     const tags = (row.cw_plugin_item_tags || [])
@@ -155,7 +159,7 @@ async function getGitHubDownloadCount(repoUrl: string): Promise<number> {
     }
 }
 
-export async function getPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
+async function loadPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
     const stats: Record<string, number> = {};
     const batches = Array.from({ length: Math.ceil(manifests.length / 4) }, (_, index) => manifests.slice(index * 4, index * 4 + 4));
 
@@ -166,6 +170,13 @@ export async function getPluginDownloadStats(manifests: Array<{ id: string; url?
 
     return stats;
 }
+
+// 下载量统计缓存：GitHub API 调用昂贵且有限流，缓存 30 分钟共享给所有实例。
+export const getPluginDownloadStats = unstable_cache(
+    async (manifests: Array<{ id: string; url?: string; repo_url?: string }>) => loadPluginDownloadStats(manifests),
+    ['cw-plugin-download-stats'],
+    { revalidate: 1800, tags: [PLUGIN_LIST_CACHE_TAG] },
+);
 
 /** 读取所有 manifests */
 export async function getAllManifests(): Promise<any[]> {
@@ -384,9 +395,7 @@ export async function getPluginManifest(pluginId: string, noMirror: boolean = fa
     return normalizePluginRow(row, nameMap[row.owner_id]);
 }
 
-export async function getPluginManifests(noMirror: boolean = false) {
-    void noMirror;
-
+async function loadPluginManifests() {
     const { data, error } = await supabase
         .schema('cw')
         .from('cw_plugins')
@@ -405,7 +414,14 @@ export async function getPluginManifests(noMirror: boolean = false) {
     return rows.map(row => normalizePluginRow(row, nameMap[row.owner_id]));
 }
 
-export async function getPluginRatingStats(pluginIds: string[]) {
+// 全量已发布插件列表，缓存到数据层，避免每次请求都打 Supabase。
+export const getPluginManifests = unstable_cache(
+    async (_noMirror: boolean = false) => loadPluginManifests(),
+    ['cw-plugin-manifests'],
+    { revalidate: 120, tags: [PLUGIN_LIST_CACHE_TAG] },
+);
+
+async function loadPluginRatingStats(pluginIds: string[]) {
     const ids = [...new Set(pluginIds.filter(Boolean))];
     if (ids.length === 0) return {};
 
@@ -433,6 +449,13 @@ export async function getPluginRatingStats(pluginIds: string[]) {
 
     return stats;
 }
+
+// 评分统计缓存，key 由排序后的插件 ID 列表决定，避免同一集合重复查库。
+export const getPluginRatingStats = unstable_cache(
+    async (pluginIds: string[]) => loadPluginRatingStats(pluginIds),
+    ['cw-plugin-rating-stats'],
+    { revalidate: 120, tags: [PLUGIN_LIST_CACHE_TAG] },
+);
 
 /**
  * 处理Banner图片路径，将相对路径转换为GitHub绝对路径
