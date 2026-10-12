@@ -18,10 +18,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
     const { pluginId } = await ctx.params;
     const requestSupabase = createRequestSupabase(req) ?? supabase;
 
+    // 评价功能暂时隐藏：不再读取/返回 comment 字段，评价内容始终为空。
+    // const { data: ratings, error } = await requestSupabase
+    //   .schema('cw')
+    //   .from('cw_plugins_rating')
+    //   .select('user_id, rating, comment, created_at, updated_at')
+    //   .eq('plugin_id', pluginId)
+    //   .order('created_at', { ascending: false });
     const { data: ratings, error } = await requestSupabase
       .schema('cw')
       .from('cw_plugins_rating')
-      .select('user_id, rating, comment, created_at, updated_at')
+      .select('user_id, rating, created_at, updated_at')
       .eq('plugin_id', pluginId)
       .order('created_at', { ascending: false });
 
@@ -41,6 +48,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
     const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
     const data = (ratings ?? []).map((rating) => ({
       ...rating,
+      // 评价功能暂时隐藏：始终返回空评价。
+      comment: null,
       profile: profileMap.get(rating.user_id) ?? null,
     }));
 
@@ -57,15 +66,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ pluginId: stri
 
     const payload = await req.json().catch(() => ({}));
     const rating = Number(payload?.rating ?? 5);
-    const comment = String(payload?.comment ?? '').trim();
+    // 评价功能暂时隐藏：不再接收评价内容。
+    // const comment = String(payload?.comment ?? '').trim();
 
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       return NextResponse.json({ ok: false, error: '评分必须在 1 到 5 之间' }, { status: 400 });
     }
 
-    if (comment.length > 64) {
-      return NextResponse.json({ ok: false, error: '评论不能超过 64 个字符' }, { status: 400 });
-    }
+    // 评价功能暂时隐藏：关闭评价长度校验。
+    // if (comment.length > 64) {
+    //   return NextResponse.json({ ok: false, error: '评论不能超过 64 个字符' }, { status: 400 });
+    // }
 
     const authorization = req.headers.get('authorization');
     const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
@@ -78,7 +89,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ pluginId: stri
       plugin_id: pluginId,
       user_id: authData.user.id,
       rating,
-      comment: comment || null,
+      // 评价功能暂时隐藏：不再写入评价内容。
+      // comment: comment || null,
+      comment: null,
     });
 
     if (error) {

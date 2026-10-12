@@ -5,9 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner, Rating } from "@fluentui/react-components";
 import { marked } from "marked";
 import PluginList from "@/app/components/Plugin/PluginList";
-import CommentsDialog, { type PluginReview } from "@/app/components/Plugin/CommentsDialog";
+// 评价功能暂时隐藏：CommentsDialog / PluginReviewItem 暂时不再使用。
+// import CommentsDialog, { type PluginReview } from "@/app/components/Plugin/CommentsDialog";
 import RatingDialog from "@/app/components/Plugin/RatingDialog";
-import PluginReviewItem from "@/app/components/Plugin/PluginReviewItem";
+import { type PluginReview } from "@/app/components/Plugin/PluginReviewItem";
 import DOMPurify from "dompurify";
 import {
   TagRegular,
@@ -112,11 +113,13 @@ export default function PluginDetailPage() {
   const [ratings, setRatings] = React.useState<PluginReview[]>([]);
   const [isLoadingRatings, setIsLoadingRatings] = React.useState(true);
   const [ratingsError, setRatingsError] = React.useState<string | null>(null);
-  const [isReviewsDialogOpen, setIsReviewsDialogOpen] = React.useState(false);
+  // 评价功能暂时隐藏：评价弹窗暂时不再使用。
+  // const [isReviewsDialogOpen, setIsReviewsDialogOpen] = React.useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = React.useState(false);
   const [isAuthDialogOpen, setIsAuthDialogOpen] = React.useState(false);
   const [ratingValue, setRatingValue] = React.useState(0);
-  const [ratingComment, setRatingComment] = React.useState("");
+  // 评价功能暂时隐藏：评价内容暂时不再使用。
+  // const [ratingComment, setRatingComment] = React.useState("");
   const [isSubmittingRating, setIsSubmittingRating] = React.useState(false);
   const [ratingSubmitError, setRatingSubmitError] = React.useState<string | null>(null);
   const [isReadmeExpanded, setIsReadmeExpanded] = React.useState(false);
@@ -205,11 +208,11 @@ export default function PluginDetailPage() {
         headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
       });
       const body = await response.json();
-      if (!response.ok || !body?.ok) throw new Error(body?.error || "评论加载失败");
+      if (!response.ok || !body?.ok) throw new Error(body?.error || "评分加载失败");
       setRatings(Array.isArray(body.data) ? body.data : []);
     } catch (error: any) {
       setRatings([]);
-      setRatingsError(error?.message || "评论加载失败");
+      setRatingsError(error?.message || "评分加载失败");
     } finally {
       setIsLoadingRatings(false);
     }
@@ -290,13 +293,14 @@ export default function PluginDetailPage() {
     const total = ratings.length;
     const average = total ? ratings.reduce((sum, item) => sum + item.rating, 0) / total : 0;
     const distribution = [5, 4, 3, 2, 1].map((score) => ({ score, count: ratings.filter((item) => item.rating === score).length }));
-    return { total, average, distribution, commentCount: ratings.filter((item) => item.comment).length };
+    return { total, average, distribution };
   }, [ratings]);
 
-  const recentReviews = React.useMemo(() => ratings
-    .filter((item) => item.comment)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 2), [ratings]);
+  // 评价功能暂时隐藏：暂时不再展示文字评价。
+  // const recentReviews = React.useMemo(() => ratings
+  //   .filter((item) => item.comment)
+  //   .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  //   .slice(0, 2), [ratings]);
 
   const openRatingDialog = (selectedRating?: number) => {
     if (!user) {
@@ -305,7 +309,8 @@ export default function PluginDetailPage() {
     }
     const ownRating = ratings.find((item) => item.user_id === user.id);
     setRatingValue(selectedRating ?? ownRating?.rating ?? 0);
-    setRatingComment(ownRating?.comment ?? "");
+    // 评价功能暂时隐藏：暂时不再回填评价内容。
+    // setRatingComment(ownRating?.comment ?? "");
     setRatingSubmitError(null);
     setIsRatingDialogOpen(true);
   };
@@ -322,7 +327,8 @@ export default function PluginDetailPage() {
           "Content-Type": "application/json",
           ...(data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : {}),
         },
-        body: JSON.stringify({ rating: ratingValue, comment: ratingComment }),
+        // 评价功能暂时隐藏：暂时不再提交评价内容。
+        body: JSON.stringify({ rating: ratingValue, comment: "" }),
       });
       const body = await response.json();
       if (!response.ok || !body?.ok) throw new Error(body?.error || "提交评价失败");
@@ -557,10 +563,12 @@ export default function PluginDetailPage() {
          <aside className="flex flex-col gap-5">
           <Card className="!p-4 md:!p-8">
              <div className="flex items-center justify-between">
-               <Text weight="semibold" size={500}>评分和评价</Text>
+               {/* 评价功能暂时隐藏：卡片标题仅保留评分。 */}
+               <Text weight="semibold" size={500}>评分</Text>
                <div className="flex items-center gap-1">
-                 {ratings.some((item) => item.user_id === user?.id) && <Button appearance="subtle" icon={<EditRegular />} onClick={() => openRatingDialog()} aria-label="修改评价" />}
-                 {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
+                 {ratings.some((item) => item.user_id === user?.id) && <Button appearance="subtle" icon={<EditRegular />} onClick={() => openRatingDialog()} aria-label="修改评分" />}
+                 {/* 评价功能暂时隐藏：暂时隐藏查看全部评价入口。 */}
+                 {/* {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />} */}
                </div>
              </div>
              <Divider className="my-3" />
@@ -596,12 +604,14 @@ export default function PluginDetailPage() {
                   <div className="flex-shrink-0"><Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} /></div>
                   <Text size={300}>你如何评价 {manifest.name}?</Text>
                 </div>}
-                 {recentReviews.length > 0 && <div className="mt-5">
+                 {/* 评价功能暂时隐藏：暂时不再展示文字评价。 */}
+                 {/* {recentReviews.length > 0 && <div className="mt-5">
                    <div className="space-y-0">
                      {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact />)}
                    </div>
-                 </div>}
-                 {ratingSummary.commentCount > 0 && <Button appearance="transparent" className="!mt-3 !px-0" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{ratingSummary.commentCount}）</Button>}
+                 </div>} */}
+                 {/* 评价功能暂时隐藏：暂时隐藏查看全部评价入口。 */}
+                 {/* {ratingSummary.commentCount > 0 && <Button appearance="transparent" className="!mt-3 !px-0" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{ratingSummary.commentCount}）</Button>} */}
                </>
              )}
            </Card>
@@ -615,17 +625,16 @@ export default function PluginDetailPage() {
            </Card>
          </aside>
       </div>)}
-      <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} />
+      {/* 评价功能暂时隐藏：暂时不再渲染评价弹窗。 */}
+      {/* <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} /> */}
       <RatingDialog
         open={isRatingDialogOpen}
         pluginName={manifest?.name || "此插件"}
         rating={ratingValue}
-        comment={ratingComment}
         submitting={isSubmittingRating}
         error={ratingSubmitError}
         onOpenChange={setIsRatingDialogOpen}
         onRatingChange={setRatingValue}
-        onCommentChange={setRatingComment}
         onSubmit={submitRating}
       />
       <AuthDialog open={isAuthDialogOpen} onOpenChange={setIsAuthDialogOpen} />
