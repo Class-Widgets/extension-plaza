@@ -41,6 +41,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | 1 | GET | `/api/banners` | 获取首页横幅 |
 | 2 | GET | `/api/plugins` | 插件列表（分页） |
 | 3 | GET | `/api/plugins/[pluginId]` | 插件详情 |
+| 3.5 | GET | `/api/plugins/versions` | 批量版本核对（客户端更新检查） |
 | 4 | GET | `/api/plugins/search` | 搜索插件 |
 | 4.5 | GET | `/api/plugins/suggest` | 搜索建议（Autofill） |
 | 4.6 | GET | `/api/plugins/random` | 随机推荐插件 |
@@ -192,6 +193,55 @@ curl "http://localhost:3000/api/plugins/chatgpt-widget"
   }
 }
 ```
+
+## 3.5 插件批量版本核对 API
+
+`GET /api/plugins/versions`
+
+客户端一次传入本机所有已安装外部插件的 ID，服务端只返回每个 ID 的当前已发布版本与 `missing` 列表，替代"每个插件打一次详情接口"。这是 Class Widgets 客户端更新检查使用的接口，用于把 N 个插件合并为 1 个请求，降低客户端轮询对源站与流量的压力。
+
+**参数**
+
+| 参数名 | 类型 | 描述 | 默认值 |
+|-------|------|------|--------|
+| `ids` | string | 插件 ID 列表，逗号分隔（单个 ID 需匹配 `[A-Za-z0-9._-]+`，最多 50 个） | 必填 |
+
+调用约定（客户端应遵守，可提升 CDN 命中率）：
+
+- 传参前对 ID 做 trim、去重、字典序排序再 URL 编码，保证同一批 ID 生成稳定的查询串。
+- `missing` 中的 ID 表示广场不存在或未发布该插件；客户端应将其显示为不可用，但不应据此长期跳过后续检查，以便广场后来发布同 ID 插件后能被发现。
+- 响应可由边缘缓存复用；缓存未命中时，服务端只从已缓存的已发布插件版本表中筛选 `id` 和 `version`。
+
+**调用示例**
+
+```bash
+curl "http://localhost:3000/api/plugins/versions?ids=com.weather,com.rollcall,com.daily.quote"
+```
+
+**返回范例**
+
+```json
+{
+  "ok": true,
+  "protocol": 1,
+  "data": {
+    "plugins": [
+      { "id": "com.rollcall", "version": "1.3.0" },
+      { "id": "com.weather", "version": "1.4.0" }
+    ],
+    "missing": ["com.daily.quote"]
+  },
+  "meta": { "requested": 3, "found": 2, "missing": 1 }
+}
+```
+
+`ids` 为空或全部非法时返回 `400`：
+
+```json
+{ "ok": false, "error": "query parameter 'ids' is required" }
+```
+
+缺少 `ids` 时会报错；需要完整插件详情请改用 `GET /api/plugins/[pluginId]`。
 
 ## 4. 插件搜索 API
 

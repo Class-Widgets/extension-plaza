@@ -442,6 +442,29 @@ export const getPluginManifests = unstable_cache(
     { revalidate: 120, tags: [PLUGIN_LIST_CACHE_TAG] },
 );
 
+async function loadPublishedPluginVersions() {
+    const { data, error } = await supabase
+        .schema('cw')
+        .from('cw_plugins')
+        .select('id, version')
+        .eq('status', 'published');
+
+    if (error) {
+        throw error;
+    }
+
+    return (data ?? []).map((row) => ({
+        id: String(row.id),
+        version: String(row.version ?? ''),
+    }));
+}
+
+export const getPublishedPluginVersions = unstable_cache(
+    async () => loadPublishedPluginVersions(),
+    ['cw-published-plugin-versions'],
+    { revalidate: 120, tags: [PLUGIN_LIST_CACHE_TAG] },
+);
+
 async function loadPluginRatingStats(pluginIds: string[]) {
     const ids = [...new Set(pluginIds.filter(Boolean))];
     if (ids.length === 0) return {};
