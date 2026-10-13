@@ -3,24 +3,35 @@ import { mirrorSources, apiMirrorSources } from "@/mirrorSources";
 const mirrorCache = new Map<string, { mirror: string; expiresAt: number }>();
 const MIRROR_CACHE_TTL = 5 * 60 * 1000;
 
+/** Return the origin URL when no verified mirror is available. */
+export function throughMirror(mirror: string, targetUrl: string): string {
+    if (!mirror) return targetUrl;
+    return `${mirror.replace(/\/+$/, "")}/${targetUrl.replace(/^https?:\/\//, "")}`;
+}
+
 async function testMirror(url: string) {
+    let controller: AbortController | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
+        controller = new AbortController();
+        timeout = setTimeout(() => controller?.abort(), 2000);
         // 使用Date.now()代替performance.now()以提高兼容性
         const start = Date.now();
 
         // 使用简单的GET请求测试镜像可用性，只获取前几个字节
-        await fetch(url, { 
+        const response = await fetch(url, {
             method: "GET", 
             signal: controller.signal,
             headers: { "Range": "bytes=0-100" } // 只请求前100字节以提高速度
         });
 
-        clearTimeout(timeout);
+        // A fast error page is not a usable mirror.
+        if (!response.ok && response.status !== 206) return Infinity;
         return Date.now() - start;
     } catch {
         return Infinity; // 超时或错误，算作最慢
+    } finally {
+        if (timeout) clearTimeout(timeout);
     }
 }
 
@@ -89,7 +100,10 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
     tests.sort((a, b) => a.time - b.time);
     
     // 返回最快的镜像源
-    const mirror = tests[0].mirror;
+    const fastest = tests[0];
+    // If every mirror is unavailable, use the source URL instead of building
+    // a redirect through an unverified proxy.
+    const mirror = fastest && Number.isFinite(fastest.time) ? fastest.mirror : "";
     mirrorCache.set(cacheKey, { mirror, expiresAt: Date.now() + MIRROR_CACHE_TTL });
     return mirror;
 }

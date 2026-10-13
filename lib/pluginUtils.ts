@@ -378,22 +378,43 @@ export async function getBanner(name: string = 'home', noMirror: boolean = false
 export async function getPluginManifest(pluginId: string, noMirror: boolean = false) {
     void noMirror;
 
+    // 按 ID 单独查询并缓存
+    const manifest = await getCachedPluginManifest(pluginId);
+    if (!manifest) {
+        throw new Error(`${pluginId} is not exists.`);
+    }
+    return manifest;
+}
+
+async function loadPluginManifestById(pluginId: string) {
     const { data, error } = await supabase
         .schema('cw')
         .from('cw_plugins')
         .select(pluginSelect())
         .eq('id', pluginId)
         .eq('status', 'published')
-        .single();
+        .maybeSingle();
 
-    if (error || !data) {
-        throw new Error(`${pluginId} 插件不存在`);
+    // 查询报错时抛出
+    if (error) {
+        throw error;
+    }
+    // 确实不存在则返回 null，交由 unstable_cache 缓存
+    if (!data) {
+        return null;
     }
 
     const row = data as unknown as PluginRow;
     const nameMap = await fetchDisplayNames([row.owner_id]);
     return normalizePluginRow(row, nameMap[row.owner_id]);
 }
+
+// keyParts 固定，函数入参 pluginId 会作为缓存 key 的一部分，因此每个 ID 独立缓存。
+const getCachedPluginManifest = unstable_cache(
+    async (pluginId: string) => loadPluginManifestById(pluginId),
+    ['cw-plugin-manifest-by-id'],
+    { revalidate: 120, tags: [PLUGIN_LIST_CACHE_TAG] },
+);
 
 async function loadPluginManifests() {
     const { data, error } = await supabase
