@@ -37,8 +37,16 @@ export default function Footer() {
                 </div>
             </div>
             <Divider />
-            <div className="px-4 max-w-6xl mx-auto pb-8 text-center">
+            <div className="px-4 max-w-6xl mx-auto pb-8 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
                 <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>© 2025 Class Widgets</Text>
+                <FluentLink
+                    href="https://beian.miit.gov.cn/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    appearance="subtle"
+                >
+                    <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>琼ICP备2026014960号-1</Text>
+                </FluentLink>
             </div>
         </footer>
     );
