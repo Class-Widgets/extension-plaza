@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getPluginManifest, parseGitHubRepo, processReadmeImages, PLUGIN_LIST_CACHE_TAG } from "@/lib/pluginUtils";
-import { pickMirrorFor } from "@/lib/mirrorUtils";
+import { pickMirrorFor, throughMirror } from "@/lib/mirrorUtils";
 
 const cacheHeaders = {
     "Content-Type": "text/plain; charset=utf-8",
@@ -21,7 +21,7 @@ const loadReadme = unstable_cache(
             const { owner, repo } = parseGitHubRepo(manifest.url);
             const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${manifest.readme}`;
             const mirror = await pickMirrorFor(rawUrl);
-            readmeUrl = `${mirror}/${rawUrl}`;
+            readmeUrl = throughMirror(mirror, rawUrl);
         }
 
         const res = await fetch(readmeUrl, { next: { revalidate: 3600 } });

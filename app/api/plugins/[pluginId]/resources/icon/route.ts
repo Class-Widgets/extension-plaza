@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getPluginManifest } from "@/lib/pluginUtils";
-import { pickMirrorFor } from "@/lib/mirrorUtils";
+import { pickMirrorFor, throughMirror } from "@/lib/mirrorUtils";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
     const manifest = await getPluginManifest(pluginId);
 
@@ -34,15 +34,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
         }
 
         // 获取镜像服务
-        const mirror = await pickMirrorFor(iconUrl);
-        // 处理镜像URL拼接，确保格式正确
-        if (iconUrl.startsWith("https://raw.githubusercontent.com")) {
-            // 对于raw.githubusercontent.com，替换为镜像URL + /raw.githubusercontent.com/
-            iconUrl = `${mirror}/${iconUrl.replace("https://", "")}`;
-        } else if (iconUrl.startsWith("https://github.com")) {
-            // 对于github.com，替换为镜像URL + /github.com/
-            iconUrl = `${mirror}/${iconUrl.replace("https://", "")}`;
-        }
+        const noMirror = new URL(req.url).searchParams.get("no-mirror") === "true";
+        const mirror = await pickMirrorFor(iconUrl, noMirror);
+        iconUrl = throughMirror(mirror, iconUrl);
     }
 
     try {

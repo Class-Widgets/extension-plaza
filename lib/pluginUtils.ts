@@ -287,7 +287,9 @@ export async function processReadmeImages(
         let proxiedUrl = fullUrl; // 默认使用原始完整 URL
         try {
             const mirrorPrefix = await pickMirrorFor(fullUrl, noMirror);
-            proxiedUrl = noMirror ? fullUrl : `${mirrorPrefix}/${fullUrl}`;
+            proxiedUrl = noMirror || !mirrorPrefix
+                ? fullUrl
+                : `${mirrorPrefix.replace(/\/+$/, '')}/${fullUrl.replace(/^https?:\/\//, '')}`;
         } catch (error) {
             console.error(`Error proxying image ${fullUrl}:`, error);
             // 如果代理失败，则使用原始的 GitHub raw URL，或者在前端进行进一步处理

@@ -22,7 +22,8 @@ async function testMirror(url: string) {
         const response = await fetch(url, {
             method: "GET", 
             signal: controller.signal,
-            headers: { "Range": "bytes=0-100" } // 只请求前100字节以提高速度
+            headers: { "Range": "bytes=0-100" },
+            redirect: "follow",
         });
 
         // A fast error page is not a usable mirror.
@@ -69,7 +70,9 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
     }
     
     const isApiUrl = url.includes("api.github.com");
-    const cacheKey = isApiUrl ? "api" : "resource";
+    // 镜像对 raw、blob、release 等路径的支持并不一致，不能把一个目标的
+    // 检测结果缓存给所有资源。按完整目标 URL 缓存短时间结果。
+    const cacheKey = `${isApiUrl ? "api" : "resource"}:${url}`;
     const cached = mirrorCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
         return cached.mirror;
@@ -78,15 +81,10 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
     // 根据URL类型选择镜像源
     const sources = isApiUrl ? apiMirrorSources : mirrorSources;
     
-    // 创建测试URLs，使用实际资源URL的一部分进行测试
-    // 选择一个简单的GitHub资源作为测试目标
-    const testUrl = "https://github.com/Class-Widgets/plugin-plaza/raw/main/README.md";
-    
-    // 测试所有镜像源
+    // 使用当前实际目标检测，避免把已经失效或只支持部分路径的镜像选出来。
     const tests = await Promise.all(
         sources.map(async (mirror) => {
-            // 构造完整的测试URL
-            const fullTestUrl = `${mirror}/${testUrl.replace("https://", "")}`;
+            const fullTestUrl = throughMirror(mirror, url);
             try {
                 const time = await testMirror(fullTestUrl);
                 return { mirror, time };
