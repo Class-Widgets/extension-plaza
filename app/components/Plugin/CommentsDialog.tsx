@@ -15,11 +15,12 @@ type CommentsDialogProps = {
     open: boolean;
     reviews: PluginReview[];
     onOpenChange: (open: boolean) => void;
+    onReport?: (review: PluginReview) => void;
 };
 
 const reviewsPerPage = 5;
 
-export default function CommentsDialog({ open, reviews, onOpenChange }: CommentsDialogProps) {
+export default function CommentsDialog({ open, reviews, onOpenChange, onReport }: CommentsDialogProps) {
     const [sort, setSort] = React.useState<CommentSort>("recent");
     const [currentPage, setCurrentPage] = React.useState(1);
 
@@ -56,7 +57,7 @@ export default function CommentsDialog({ open, reviews, onOpenChange }: Comments
                         {pageReviews.length ? (
                             <div className="space-y-5">
                                 {pageReviews.map((review) => (
-                                    <PluginReviewItem key={review.user_id} review={review} />
+                                    <PluginReviewItem key={review.user_id} review={review} onReport={onReport} />
                                 ))}
                             </div>
                         ) : <EmptyState className="!shadow-none" message="当前还没有用户留下文字评价" />}

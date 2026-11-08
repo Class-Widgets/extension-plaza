@@ -8,6 +8,7 @@ import PluginList from "@/app/components/Plugin/PluginList";
 import CommentsDialog, { type PluginReview } from "@/app/components/Plugin/CommentsDialog";
 import RatingDialog from "@/app/components/Plugin/RatingDialog";
 import PluginReviewItem from "@/app/components/Plugin/PluginReviewItem";
+import ReportDialog from "@/app/components/Plugin/ReportDialog";
 import DOMPurify from "dompurify";
 import {
   TagRegular,
@@ -21,7 +22,8 @@ import {
   ShareRegular,
   ChevronRightRegular,
   StarFilled,
-  EditRegular
+  EditRegular,
+  FlagRegular
 } from "@fluentui/react-icons";
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import AuthDialog from "@/app/components/Auth/AuthDialog";
@@ -116,6 +118,7 @@ export default function PluginDetailPage() {
   const [isReviewsDialogOpen, setIsReviewsDialogOpen] = React.useState(false);
   const [isRatingDialogOpen, setIsRatingDialogOpen] = React.useState(false);
   const [isAuthDialogOpen, setIsAuthDialogOpen] = React.useState(false);
+  const [reportTarget, setReportTarget] = React.useState<{ subject: string; context: string } | null>(null);
   const [ratingValue, setRatingValue] = React.useState(0);
   const [ratingComment, setRatingComment] = React.useState("");
   const [isSubmittingRating, setIsSubmittingRating] = React.useState(false);
@@ -450,6 +453,7 @@ export default function PluginDetailPage() {
                   }}
                   aria-label="分享插件"
                 />
+                <Button appearance="secondary" icon={<FlagRegular />} onClick={() => setReportTarget({ subject: `举报插件：${manifest.name}`, context: `插件“${manifest.name}”（ID：${pluginId}）` })} aria-label="举报插件" />
               </div>
             </>
           ) : manifestError ? (
@@ -606,7 +610,7 @@ export default function PluginDetailPage() {
                 </div>}
                  {recentReviews.length > 0 && <div className="mt-5">
                    <div className="space-y-0">
-                     {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact />)}
+                     {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact onReport={(target) => setReportTarget({ subject: `举报评论：${manifest.name}`, context: `插件“${manifest.name}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />)}
                    </div>
                  </div>}
                  {ratingSummary.commentCount > 0 && <Button appearance="transparent" className="!mt-3 !px-0" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{ratingSummary.commentCount}）</Button>}
@@ -623,7 +627,8 @@ export default function PluginDetailPage() {
            </Card>
          </aside>
       </div>)}
-      <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} />
+      <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} onReport={(target) => setReportTarget({ subject: `举报评论：${manifest?.name || pluginId}`, context: `插件“${manifest?.name || pluginId}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />
+      <ReportDialog open={!!reportTarget} subject={reportTarget?.subject || "举报插件广场内容"} context={reportTarget?.context || ""} onOpenChange={(open) => { if (!open) setReportTarget(null); }} />
       <RatingDialog
         open={isRatingDialogOpen}
         pluginName={manifest?.name || "此插件"}
