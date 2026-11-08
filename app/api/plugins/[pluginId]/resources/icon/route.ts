@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPluginManifest } from "@/lib/pluginUtils";
-import { pickMirrorFor, throughMirror } from "@/lib/mirrorUtils";
+import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
@@ -36,7 +36,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
         // 获取镜像服务
         const noMirror = new URL(req.url).searchParams.get("no-mirror") === "true";
         const mirror = await pickMirrorFor(iconUrl, noMirror);
-        iconUrl = throughMirror(mirror, iconUrl);
+        iconUrl = mirror || iconUrl;
     }
 
     try {

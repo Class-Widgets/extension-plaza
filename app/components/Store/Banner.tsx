@@ -11,6 +11,7 @@ import {
   CarouselSlider,
 } from "@fluentui/react-carousel";
 import Link from "next/link";
+import { getPluginIconUrl } from "@/lib/apiRoutes";
 
 type PluginInfo = { id: string; name: string };
 type BannerItem = { image: string; title?: string; desc?: string };
@@ -59,7 +60,7 @@ export default function Banner({ plugins }: { plugins?: PluginInfo[] }) {
 
   const selectedPlugins = React.useMemo(() => {
     const picked = seededPick(plugins ?? [], 6, rng);
-    return picked.map((p) => ({ id: p.id, name: p.name, icon: `/api/plugins/${p.id}/resources/icon` }));
+    return picked.map((p) => ({ id: p.id, name: p.name, icon: getPluginIconUrl(p.id) }));
   }, [plugins, rng]);
 
   const defaults: BannerItem[] = [

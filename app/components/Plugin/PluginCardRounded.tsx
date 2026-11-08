@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardFooter, CardHeader, CardPreview, Text, makeStyles, tokens } from "@fluentui/react-components";
 import * as React from "react";
 import { StarFilled } from "@fluentui/react-icons";
+import { getPluginIconUrl } from "@/lib/apiRoutes";
 
 const useStyles = makeStyles({
   link: {
@@ -109,7 +110,7 @@ const useStyles = makeStyles({
 
 export default function PluginCardRounded({ plugin, showRating = false }: { plugin: any; showRating?: boolean }) {
   const styles = useStyles();
-  const [iconSrc, setIconSrc] = React.useState<string>(`/api/plugins/${plugin.id}/resources/icon`);
+  const [iconSrc, setIconSrc] = React.useState<string>(getPluginIconUrl(plugin.id));
   const author = plugin?.author || plugin?.owner_name || plugin?.owner_id || "作者未知";
   const ratingAverage = Number(plugin?.rating_average ?? 0);
   const ratingCount = Number(plugin?.rating_count ?? 0);

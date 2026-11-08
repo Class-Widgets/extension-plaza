@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getPluginManifest } from '@/lib/pluginUtils';
 import { PUBLIC_CACHE_HEADERS } from '@/lib/cache';
+import { getPluginIconUrl } from '@/lib/apiRoutes';
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     try {
@@ -14,7 +15,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
             ...manifest,
             // 可以在这里添加额外的插件信息
             resources: {
-                icon: `/api/plugins/${pluginId}/resources/icon`,
+                icon: getPluginIconUrl(pluginId),
                 readme: `/api/plugins/${pluginId}/resources/readme`,
                 release: `/api/plugins/${pluginId}/resources/release`
             }

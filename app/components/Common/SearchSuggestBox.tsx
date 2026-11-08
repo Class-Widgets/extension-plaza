@@ -19,6 +19,7 @@ import {
   Tag16Regular,
 } from "@fluentui/react-icons";
 import { useTabsterAttributes } from "@fluentui/react-tabster";
+import { getPluginIconUrl } from "@/lib/apiRoutes";
 
 type SuggestionType = "plugin" | "tag" | "author";
 
@@ -225,7 +226,7 @@ export default function SearchSuggestBox({
         <Avatar
           size={20}
           shape="square"
-          image={{ src: `/api/plugins/${encodeURIComponent(item.pluginId)}/resources/icon` }}
+          image={{ src: getPluginIconUrl(item.pluginId) }}
         />
       );
     }

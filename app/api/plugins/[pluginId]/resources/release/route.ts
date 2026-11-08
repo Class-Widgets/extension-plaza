@@ -1,7 +1,7 @@
 // app/api/plugins/[pluginId]/resources/release/route.ts
 import { NextResponse } from "next/server";
 import { getPluginManifest } from "@/lib/pluginUtils";
-import { pickMirrorFor, throughMirror } from "@/lib/mirrorUtils";
+import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 function getReleaseUrl(repositoryUrl: string, assetName: string): string {
     let url: URL;
@@ -54,7 +54,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
         // 构建原始 release 下载 URL
         const releaseUrl = getReleaseUrl(manifest.url, `${manifest.id}.${format}`);
         const mirror = await pickMirrorFor(releaseUrl);
-        const mirroredReleaseUrl = throughMirror(mirror, releaseUrl);
+        const mirroredReleaseUrl = mirror || releaseUrl;
 
         // 302 到镜像/源站
         const response = NextResponse.redirect(mirroredReleaseUrl, 302);

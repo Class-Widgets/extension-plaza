@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unstable_cache } from "next/cache";
 import { getPluginManifest, parseGitHubRepo, processReadmeImages, PLUGIN_LIST_CACHE_TAG } from "@/lib/pluginUtils";
-import { pickMirrorFor, throughMirror } from "@/lib/mirrorUtils";
+import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 const cacheHeaders = {
     "Content-Type": "text/plain; charset=utf-8",
@@ -10,7 +10,7 @@ const cacheHeaders = {
 
 // README 正文抓取 + 图片代理重写：用 unstable_cache 做跨实例共享缓存，
 const loadReadme = unstable_cache(
-    async (pluginId: string): Promise<string> => {
+    async (pluginId: string, noMirror: boolean): Promise<string> => {
         const manifest = await getPluginManifest(pluginId);
         let readmeUrl = manifest.readme;
 
@@ -20,15 +20,15 @@ const loadReadme = unstable_cache(
             // https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
             const { owner, repo } = parseGitHubRepo(manifest.url);
             const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${manifest.readme}`;
-            const mirror = await pickMirrorFor(rawUrl);
-            readmeUrl = throughMirror(mirror, rawUrl);
+            const mirror = await pickMirrorFor(rawUrl, noMirror);
+            readmeUrl = mirror || rawUrl;
         }
 
         const res = await fetch(readmeUrl, { next: { revalidate: 3600 } });
         if (!res.ok) throw new Error(`fetch failed with status ${res.status}`);
         let text = await res.text();
         const branch = manifest.branch || "main"; // 确保 branch 可用
-        text = await processReadmeImages(text, manifest.url, branch, pickMirrorFor);
+        text = await processReadmeImages(text, manifest.url, branch, pickMirrorFor, noMirror);
         return text;
     },
     ['cw-plugin-readme'],
@@ -37,9 +37,10 @@ const loadReadme = unstable_cache(
 
 export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
+    const noMirror = new URL(_req.url).searchParams.get("no-mirror") === "true";
 
     try {
-        const text = await loadReadme(pluginId);
+        const text = await loadReadme(pluginId, noMirror);
         return new NextResponse(text, { status: 200, headers: cacheHeaders });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 404 });

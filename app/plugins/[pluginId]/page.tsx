@@ -26,6 +26,7 @@ import {
 import { useAuthSession } from "@/app/components/Auth/useAuthSession";
 import AuthDialog from "@/app/components/Auth/AuthDialog";
 import { supabase } from "@/lib/supabase";
+import { getPluginIconUrl } from "@/lib/apiRoutes";
 
 
 // README 渲染（支持 GitHub 风格 admonition + 占位符解析）
@@ -124,7 +125,7 @@ export default function PluginDetailPage() {
   const [readmeMaxHeight, setReadmeMaxHeight] = React.useState(0);
   const readmeContentRef = React.useRef<HTMLDivElement>(null);
 
-  const [iconSrc, setIconSrc] = React.useState<string>(`/api/plugins/${pluginId}/resources/icon`);
+  const [iconSrc, setIconSrc] = React.useState<string>(getPluginIconUrl(pluginId));
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=zip`, [pluginId]);
   const releaseCwpluginUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=cwplugin`, [pluginId]);
   const releasePageUrl = React.useMemo(() => {

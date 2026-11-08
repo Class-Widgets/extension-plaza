@@ -24,10 +24,12 @@ async function testMirror(url: string) {
             signal: controller.signal,
             headers: { "Range": "bytes=0-100" },
             redirect: "follow",
+            cache: "no-store",
         });
 
-        // A fast error page is not a usable mirror.
+        const contentType = response.headers.get("content-type")?.toLowerCase() || "";
         if (!response.ok && response.status !== 206) return Infinity;
+        if (contentType.includes("text/html")) return Infinity;
         return Date.now() - start;
     } catch {
         return Infinity; // 超时或错误，算作最慢
@@ -36,8 +38,28 @@ async function testMirror(url: string) {
     }
 }
 
+function getMirrorCandidates(targetUrl: string, isApiUrl: boolean): string[] {
+    const sources = isApiUrl ? apiMirrorSources : mirrorSources;
+    const candidates = sources.map((mirror) => throughMirror(mirror, targetUrl));
+
+    // jsDelivr 只适用于 GitHub 仓库文件，不适用于 release 或 API。
+    if (!isApiUrl && targetUrl.startsWith("https://raw.githubusercontent.com/")) {
+        const rawPath = targetUrl.slice("https://raw.githubusercontent.com/".length);
+        const [owner, repo, branch, ...fileParts] = rawPath.split("/");
+        if (owner && repo && branch && fileParts.length > 0) {
+            const filePath = fileParts.join("/");
+            candidates.push(
+                `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/${filePath}`,
+                `https://fastly.jsdelivr.net/gh/${owner}/${repo}@${branch}/${filePath}`,
+            );
+        }
+    }
+
+    return [...new Set(candidates)];
+}
+
 /**
- * 获取最快的普通资源镜像
+ * 获取最快的普通资源镜像前缀
  */
 export async function pickFastestMirror(): Promise<string> {
     const tests = await Promise.all(
@@ -48,7 +70,7 @@ export async function pickFastestMirror(): Promise<string> {
 }
 
 /**
- * 获取最快的 GitHub API 镜像
+ * 获取最快的 GitHub API 镜像前缀
  */
 export async function pickFastestApiMirror(): Promise<string> {
     const tests = await Promise.all(
@@ -61,12 +83,12 @@ export async function pickFastestApiMirror(): Promise<string> {
 /**
  * 根据 URL 自动选择是否使用普通镜像或 API 镜像
  * @param url 原始URL
- * @param noMirror 如果为true，直接返回原始URL，跳过镜像选择
+ * @param noMirror 如果为true，跳过镜像选择
+ * @returns 可直接访问的镜像 URL；没有可用镜像时返回空字符串
  */
 export async function pickMirrorFor(url: string, noMirror: boolean = false): Promise<string> {
-    // 如果noMirror为true，直接返回原始URL
     if (noMirror) {
-        return url;
+        return "";
     }
     
     const isApiUrl = url.includes("api.github.com");
@@ -78,30 +100,17 @@ export async function pickMirrorFor(url: string, noMirror: boolean = false): Pro
         return cached.mirror;
     }
 
-    // 根据URL类型选择镜像源
-    const sources = isApiUrl ? apiMirrorSources : mirrorSources;
-    
-    // 使用当前实际目标检测，避免把已经失效或只支持部分路径的镜像选出来。
-    const tests = await Promise.all(
-        sources.map(async (mirror) => {
-            const fullTestUrl = throughMirror(mirror, url);
-            try {
-                const time = await testMirror(fullTestUrl);
-                return { mirror, time };
-            } catch {
-                return { mirror, time: Infinity };
-            }
-        })
-    );
-    
-    // 按响应时间排序
-    tests.sort((a, b) => a.time - b.time);
-    
-    // 返回最快的镜像源
-    const fastest = tests[0];
-    // If every mirror is unavailable, use the source URL instead of building
-    // a redirect through an unverified proxy.
-    const mirror = fastest && Number.isFinite(fastest.time) ? fastest.mirror : "";
+    // 并行探测，第一个返回有效资源的候选立即获胜。
+    const candidates = getMirrorCandidates(url, isApiUrl);
+    const mirror = await Promise.any(
+        candidates.map(async (candidate) => {
+            const time = await testMirror(candidate);
+            if (!Number.isFinite(time)) throw new Error("Mirror unavailable");
+            return candidate;
+        }),
+    ).catch(() => "");
+
+    // 全部不可用时返回空字符串，由调用方回退到源站。
     mirrorCache.set(cacheKey, { mirror, expiresAt: Date.now() + MIRROR_CACHE_TTL });
     return mirror;
 }
