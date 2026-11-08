@@ -15,7 +15,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ pluginId: stri
             ...manifest,
             // 可以在这里添加额外的插件信息
             resources: {
-                icon: getPluginIconUrl(pluginId),
+                icon: getPluginIconUrl(pluginId, manifest.updated_at),
                 readme: `/api/plugins/${pluginId}/resources/readme`,
                 release: `/api/plugins/${pluginId}/resources/release`
             }

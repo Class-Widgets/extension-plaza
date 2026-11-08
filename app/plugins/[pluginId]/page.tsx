@@ -176,6 +176,8 @@ export default function PluginDetailPage() {
 
   React.useEffect(() => {
     loadManifest();
+    setIconLoaded(false);
+    setIconSrc(getPluginIconUrl(pluginId));
 
     fetch(`/api/plugins/${pluginId}/resources/readme`)
       .then((r) => (r.ok ? r.text() : Promise.reject()))
@@ -196,6 +198,11 @@ export default function PluginDetailPage() {
       })
       .catch(() => setTagsMap({}));
   }, [pluginId, loadManifest]);
+
+  React.useEffect(() => {
+    setIconLoaded(false);
+    setIconSrc(getPluginIconUrl(pluginId, manifest?.updated_at));
+  }, [pluginId, manifest?.updated_at]);
 
   const loadRatings = React.useCallback(async () => {
     setIsLoadingRatings(true);

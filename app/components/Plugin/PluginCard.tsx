@@ -17,15 +17,15 @@ export default function PluginCard({ plugin, isLoading, showRating = false }: Pl
   const router = useRouter();
 
   // 图标加载（通过 API 获取）
-  const initialIcon = hasId ? getPluginIconUrl(plugin.id) : "/images/default_plugin.png";
+  const initialIcon = hasId ? getPluginIconUrl(plugin.id, plugin?.updated_at) : "/images/default_plugin.png";
   const [imgSrc, setImgSrc] = React.useState<string>(initialIcon);
   const [iconLoading, setIconLoading] = React.useState<boolean>(true);
 
   React.useEffect(() => {
-    const nextSrc = hasId ? getPluginIconUrl(plugin.id) : "/images/default_plugin.png";
+    const nextSrc = hasId ? getPluginIconUrl(plugin.id, plugin?.updated_at) : "/images/default_plugin.png";
     setImgSrc(nextSrc);
     setIconLoading(true);
-  }, [plugin?.id, hasId]);
+  }, [plugin?.id, plugin?.updated_at, hasId]);
 
   const cardClass = "relative w-full cursor-pointer transition-transform duration-200 hover:-translate-y-[2px]";
 

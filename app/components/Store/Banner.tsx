@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { getPluginIconUrl } from "@/lib/apiRoutes";
 
-type PluginInfo = { id: string; name: string };
+type PluginInfo = { id: string; name: string; updated_at?: string };
 type BannerItem = { image: string; title?: string; desc?: string };
 
 function seededRngFromDate(date: Date) {
@@ -60,7 +60,7 @@ export default function Banner({ plugins }: { plugins?: PluginInfo[] }) {
 
   const selectedPlugins = React.useMemo(() => {
     const picked = seededPick(plugins ?? [], 6, rng);
-    return picked.map((p) => ({ id: p.id, name: p.name, icon: getPluginIconUrl(p.id) }));
+    return picked.map((p) => ({ id: p.id, name: p.name, icon: getPluginIconUrl(p.id, p.updated_at) }));
   }, [plugins, rng]);
 
   const defaults: BannerItem[] = [

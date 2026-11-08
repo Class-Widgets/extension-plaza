@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getPluginManifest } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
+const ICON_CACHE_HEADERS = {
+    "Cache-Control": "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800, immutable",
+    "Eo-Cdn-Cache-Control": "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800, durable",
+};
+
 export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
     const { pluginId } = await ctx.params;
     const manifest = await getPluginManifest(pluginId);
@@ -39,14 +44,39 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
         iconUrl = mirror || iconUrl;
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     try {
-        const response = NextResponse.redirect(iconUrl, 302);
-        response.headers.set(
-            "Cache-Control",
-            "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000",
+        const upstream = await fetch(iconUrl, {
+            cache: "no-store",
+            redirect: "follow",
+            signal: controller.signal,
+        });
+        const contentType = upstream.headers.get("content-type") || "";
+
+        if (!upstream.ok || !contentType.toLowerCase().startsWith("image/")) {
+            throw new Error(`Icon fetch failed with status ${upstream.status}`);
+        }
+
+        return new NextResponse(await upstream.arrayBuffer(), {
+            status: 200,
+            headers: {
+                ...ICON_CACHE_HEADERS,
+                "Content-Type": contentType,
+            },
+        });
+    } catch (err: unknown) {
+        // Keep the redirect as a fallback so a temporarily unreachable icon
+        // host does not turn into a permanent API error.
+        const fallback = NextResponse.redirect(iconUrl, 302);
+        fallback.headers.set("Cache-Control", "no-store");
+        fallback.headers.set(
+            "X-Icon-Fetch-Error",
+            err instanceof Error ? err.message : "Icon fetch failed",
         );
-        return response;
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 404 });
+        return fallback;
+    } finally {
+        clearTimeout(timeout);
     }
 }

@@ -10,6 +10,7 @@ export interface PluginItem {
   id: string;
   name: string;
   description?: string;
+  updated_at?: string;
 }
 
 export interface PluginListProps {
@@ -58,7 +59,7 @@ export default function PluginList({ plugins, onSelect, loading, error, onRetry 
           <article key={p.id} role="listitem" className="group border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900 hover:shadow-md focus-within:shadow-md transition-shadow">
             <Link href={`/plugins/${p.id}`} className="block p-4 focus-ring">
               <div className="flex items-center gap-3">
-                <Avatar image={{ src: getPluginIconUrl(p.id) }} name={p.name} size={40} />
+                <Avatar image={{ src: getPluginIconUrl(p.id, p.updated_at) }} name={p.name} size={40} />
                 <div className="min-w-0">
                   <Text weight="semibold" size={300} className="truncate">{p.name}</Text>
                   {p.description && (
