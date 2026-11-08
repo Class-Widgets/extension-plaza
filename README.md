@@ -760,7 +760,7 @@ curl "http://localhost:3000/api/authors/550e8400-e29b-41d4-a716-446655440000"
 
 ## 部署
 
-推荐使用 [Vercel](https://vercel.com/) 部署，详见 [Next.js 部署文档](https://nextjs.org/docs/app/building-your-application/deploying)。
+站点使用腾讯云 EdgeOne 部署，详见 [Next.js 部署文档](https://nextjs.org/docs/app/building-your-application/deploying)。
 
 ```bash
 npm run build

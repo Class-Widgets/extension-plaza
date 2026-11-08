@@ -3,8 +3,8 @@ import { getPluginManifest } from "@/lib/pluginUtils";
 import { pickMirrorFor } from "@/lib/mirrorUtils";
 
 const ICON_CACHE_HEADERS = {
-    "Cache-Control": "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800, immutable",
-    "Eo-Cdn-Cache-Control": "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800, durable",
+    "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    "Eo-Cdn-Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800, durable",
 };
 
 export async function GET(req: Request, ctx: { params: Promise<{ pluginId: string }> }) {
