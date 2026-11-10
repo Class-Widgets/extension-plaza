@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Badge, Card, Divider, Input, Select, Spinner, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, Toolbar, ToolbarButton } from "@fluentui/react-components";
+import { Card, Divider, Input, RatingDisplay, Select, Spinner, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, Toolbar, ToolbarButton } from "@fluentui/react-components";
 import { ArrowSyncRegular } from "@fluentui/react-icons";
 import type { PluginRatingRow } from "../types";
-import { formatTime, getPluginFromRating } from "../utils";
+import { formatTime, getPluginFromRating, getProfileDisplayName } from "../utils";
 import CellWithDialog from "./CellWithDialog";
 import EmptyState from "@/app/components/Common/EmptyState";
 import Pagination from "./Pagination";
@@ -13,6 +13,8 @@ const PAGE_SIZE = 10;
 
 type RatingCommentsPanelProps = {
     items: PluginRatingRow[];
+    myPluginIds: string[];
+    currentUserId?: string;
     loading: boolean;
     ratingFilter: string;
     keyword: string;
@@ -22,10 +24,16 @@ type RatingCommentsPanelProps = {
     onOpenTextDialog: (title: string, content: string) => void;
 };
 
-export default function RatingCommentsPanel({ items, loading, ratingFilter, keyword, onRatingFilterChange, onKeywordChange, onReload, onOpenTextDialog }: RatingCommentsPanelProps) {
+export default function RatingCommentsPanel({ items, myPluginIds, currentUserId, loading, ratingFilter, keyword, onRatingFilterChange, onKeywordChange, onReload, onOpenTextDialog }: RatingCommentsPanelProps) {
     const [page, setPage] = React.useState(1);
-    const [pluginFilter, setPluginFilter] = React.useState("all");
+    const [pluginFilter, setPluginFilter] = React.useState<string>(() => myPluginIds.length > 0 ? "mine" : "all");
     const [userFilter, setUserFilter] = React.useState("all");
+    const pluginFilterTouched = React.useRef(false);
+    const myPluginIdSet = React.useMemo(() => new Set(myPluginIds), [myPluginIds]);
+
+    React.useEffect(() => {
+        if (!pluginFilterTouched.current && myPluginIds.length > 0) setPluginFilter("mine");
+    }, [myPluginIds.length]);
 
     const pluginOptions = React.useMemo(() => {
         const map = new Map<string, string>();
@@ -39,7 +47,7 @@ export default function RatingCommentsPanel({ items, loading, ratingFilter, keyw
     const userOptions = React.useMemo(() => {
         const map = new Map<string, string>();
         items.forEach((item) => {
-            const name = item.profile?.display_name || item.user_id;
+            const name = getProfileDisplayName(item.profile);
             map.set(item.user_id, name);
         });
         return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
@@ -47,14 +55,20 @@ export default function RatingCommentsPanel({ items, loading, ratingFilter, keyw
 
     const filteredItems = React.useMemo(() => {
         return items.filter((item) => {
-            if (pluginFilter !== "all" && item.plugin_id !== pluginFilter) return false;
+            if (pluginFilter === "mine") {
+                if (!myPluginIdSet.has(item.plugin_id)) return false;
+                if (item.user_id === currentUserId) return false;
+            } else if (pluginFilter !== "all" && item.plugin_id !== pluginFilter) {
+                return false;
+            }
             if (userFilter !== "all" && item.user_id !== userFilter) return false;
             return true;
         });
-    }, [items, pluginFilter, userFilter]);
+    }, [currentUserId, items, myPluginIdSet, pluginFilter, userFilter]);
 
     const pageData = React.useMemo(() => filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredItems, page]);
     React.useEffect(() => { setPage(1); }, [filteredItems.length]);
+
     return (
         <Card className="!p-5 min-w-0">
             <Toolbar className="px-0 gap-3" style={{ flexWrap: "wrap" }}>
@@ -62,7 +76,11 @@ export default function RatingCommentsPanel({ items, loading, ratingFilter, keyw
                     评分评论
                 </Text>
                 <Input value={keyword} placeholder="搜索插件、用户或评论" onChange={(_, data) => onKeywordChange(data.value)} />
-                <Select value={pluginFilter} onChange={(_, data) => setPluginFilter(data.value)}>
+                <Select value={pluginFilter} onChange={(_, data) => {
+                    pluginFilterTouched.current = true;
+                    setPluginFilter(data.value);
+                }}>
+                    {myPluginIds.length > 0 && <option value="mine">我收到的评论</option>}
                     <option value="all">全部插件</option>
                     {pluginOptions.map(([id, name]) => (
                         <option key={id} value={id}>{name}</option>
@@ -118,16 +136,17 @@ export default function RatingCommentsPanel({ items, loading, ratingFilter, keyw
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-col">
-                                                <Text>{item.profile?.display_name?.trim() || item.user_id}</Text>
-                                                <Text size={200} className="text-gray-500 dark:text-gray-400">
-                                                    {item.user_id}
-                                                </Text>
+                                                <Text>{getProfileDisplayName(item.profile)}</Text>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge appearance="filled" color="warning">
-                                                {item.rating} 星
-                                            </Badge>
+                                            <RatingDisplay
+                                                value={item.rating}
+                                                size="small"
+                                                color="marigold"
+                                                valueText={{ style: { display: "none" } }}
+                                                aria-label={`${item.rating} 星`}
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <CellWithDialog text={item.comment} label="评论内容" onOpen={onOpenTextDialog} />

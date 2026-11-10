@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { supabase } from "@/lib/supabase";
 
 // GitHub存储库配置
@@ -36,10 +36,14 @@ type BannerSlide = {
 };
 
 const downloadCache = new Map<string, { count: number; expiresAt: number }>();
-const DOWNLOAD_CACHE_TTL = 30 * 60 * 1000;
+const downloadRequests = new Map<string, Promise<number | null>>();
+const DOWNLOAD_CACHE_TTL = 6 * 60 * 60 * 1000;
+const DOWNLOAD_REFRESH_COOLDOWN = 60 * 1000;
+let lastDownloadRefreshAt = 0;
 
 // 插件列表相关数据层的统一缓存标签（写入插件后可用 revalidateTag 主动失效）。
 export const PLUGIN_LIST_CACHE_TAG = 'cw:plugins';
+export const PLUGIN_DOWNLOAD_CACHE_TAG = 'cw:plugin-downloads';
 
 function normalizePluginRow(row: PluginRow, displayName?: string | null) {
     const tags = (row.cw_plugin_item_tags || [])
@@ -134,49 +138,104 @@ export function parseGitHubRepo(url: string) {
     return { owner: match[1], repo: match[2] };
 }
 
-async function getGitHubDownloadCount(repoUrl: string): Promise<number> {
-    const cached = downloadCache.get(repoUrl);
-    if (cached && cached.expiresAt > Date.now()) return cached.count;
-
+async function fetchGitHubDownloadCount(repoUrl: string): Promise<number | null> {
     try {
         const { owner, repo } = parseGitHubRepo(repoUrl);
         const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
             headers: { Accept: "application/vnd.github+json" },
-            next: { revalidate: 1800 },
+            cache: "no-store",
         });
-        if (!response.ok) return 0;
+        if (!response.ok) return null;
 
         const releases = await response.json();
-        const count = Array.isArray(releases)
+        return Array.isArray(releases)
             ? releases.reduce((total, release) => total + (Array.isArray(release.assets)
                 ? release.assets.reduce((assetTotal: number, asset: { download_count?: number }) => assetTotal + (asset.download_count || 0), 0)
                 : 0), 0)
             : 0;
-        downloadCache.set(repoUrl, { count, expiresAt: Date.now() + DOWNLOAD_CACHE_TTL });
-        return count;
     } catch {
-        return 0;
+        return null;
     }
 }
 
-async function loadPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
-    const stats: Record<string, number> = {};
-    const batches = Array.from({ length: Math.ceil(manifests.length / 4) }, (_, index) => manifests.slice(index * 4, index * 4 + 4));
+// 按仓库缓存，避免插件列表内容变化时让所有插件的下载量缓存一起失效。
+const getCachedGitHubDownloadCount = unstable_cache(
+    async (repoUrl: string) => fetchGitHubDownloadCount(repoUrl),
+    ['cw-plugin-download-count'],
+    { revalidate: 21600, tags: [PLUGIN_DOWNLOAD_CACHE_TAG] },
+);
+
+async function getGitHubDownloadCount(repoUrl: string, force = false): Promise<number | null> {
+    if (!repoUrl) return null;
+
+    const cached = downloadCache.get(repoUrl);
+    if (!force && cached && cached.expiresAt > Date.now()) return cached.count;
+
+    if (force) {
+        try {
+            const count = await fetchGitHubDownloadCount(repoUrl);
+            if (count === null) return cached?.count ?? null;
+
+            downloadCache.set(repoUrl, { count, expiresAt: Date.now() + DOWNLOAD_CACHE_TTL });
+            revalidateTag(PLUGIN_DOWNLOAD_CACHE_TAG, "max");
+            return count;
+        } catch {
+            return cached?.count ?? null;
+        }
+    }
+
+    const inFlight = downloadRequests.get(repoUrl);
+    if (inFlight) return inFlight;
+
+    const request = (async () => {
+        try {
+            const count = await getCachedGitHubDownloadCount(repoUrl);
+            if (count === null) return cached?.count ?? null;
+
+            downloadCache.set(repoUrl, { count, expiresAt: Date.now() + DOWNLOAD_CACHE_TTL });
+            return count;
+        } catch {
+            return cached?.count ?? null;
+        } finally {
+            downloadRequests.delete(repoUrl);
+        }
+    })();
+
+    downloadRequests.set(repoUrl, request);
+    return request;
+}
+
+async function loadPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>, force = false) {
+    const stats: Record<string, number | null> = {};
+    const repoUrls = [...new Set(manifests.map((manifest) => manifest.repo_url || manifest.url || "").filter(Boolean))];
+    const countsByRepo = new Map<string, number | null>();
+    const batches = Array.from({ length: Math.ceil(repoUrls.length / 4) }, (_, index) => repoUrls.slice(index * 4, index * 4 + 4));
 
     for (const batch of batches) {
-        const entries = await Promise.all(batch.map(async (manifest) => [manifest.id, await getGitHubDownloadCount(manifest.repo_url || manifest.url || "")] as const));
-        for (const [id, count] of entries) stats[id] = count;
+        const entries = await Promise.all(batch.map(async (repoUrl) => [repoUrl, await getGitHubDownloadCount(repoUrl, force)] as const));
+        for (const [repoUrl, count] of entries) countsByRepo.set(repoUrl, count);
+    }
+
+    for (const manifest of manifests) {
+        stats[manifest.id] = countsByRepo.get(manifest.repo_url || manifest.url || "") ?? null;
     }
 
     return stats;
 }
 
-// 下载量统计缓存：GitHub API 调用昂贵且有限流，缓存 30 分钟共享给所有实例。
-export const getPluginDownloadStats = unstable_cache(
-    async (manifests: Array<{ id: string; url?: string; repo_url?: string }>) => loadPluginDownloadStats(manifests),
-    ['cw-plugin-download-stats'],
-    { revalidate: 1800, tags: [PLUGIN_LIST_CACHE_TAG] },
-);
+// GitHub 的未认证请求额度有限，每个仓库的下载量共享缓存 6 小时；控制台的强制刷新会绕过缓存重算。
+export async function getPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
+    return loadPluginDownloadStats(manifests);
+}
+
+export async function getFreshPluginDownloadStats(manifests: Array<{ id: string; url?: string; repo_url?: string }>) {
+    const now = Date.now();
+    if (now - lastDownloadRefreshAt < DOWNLOAD_REFRESH_COOLDOWN) {
+        return { stats: await getPluginDownloadStats(manifests), refreshed: false };
+    }
+    lastDownloadRefreshAt = now;
+    return { stats: await loadPluginDownloadStats(manifests, true), refreshed: true };
+}
 
 /** 读取所有 manifests */
 export async function getAllManifests(): Promise<any[]> {

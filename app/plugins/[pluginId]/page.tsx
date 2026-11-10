@@ -2,12 +2,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner, Rating } from "@fluentui/react-components";
+import { Button, Text, Card, Skeleton, SkeletonItem, Divider, SplitButton, Menu, MenuTrigger, MenuPopover, MenuList, MenuItem, Spinner, Rating, Toast, ToastBody, ToastTitle, useToastController } from "@fluentui/react-components";
 import { marked } from "marked";
 import PluginList from "@/app/components/Plugin/PluginList";
 import CommentsDialog, { type PluginReview } from "@/app/components/Plugin/CommentsDialog";
 import RatingDialog from "@/app/components/Plugin/RatingDialog";
-import PluginReviewItem from "@/app/components/Plugin/PluginReviewItem";
+import PluginReviewItem, { PluginOwnReviewCard } from "@/app/components/Plugin/PluginReviewItem";
 import ReportDialog from "@/app/components/Plugin/ReportDialog";
 import DOMPurify from "dompurify";
 import {
@@ -127,6 +127,7 @@ export default function PluginDetailPage() {
   const [shouldCollapseReadme, setShouldCollapseReadme] = React.useState(false);
   const [readmeMaxHeight, setReadmeMaxHeight] = React.useState(0);
   const readmeContentRef = React.useRef<HTMLDivElement>(null);
+  const { dispatchToast } = useToastController();
 
   const [iconSrc, setIconSrc] = React.useState<string>(getPluginIconUrl(pluginId));
   const releaseZipUrl = React.useMemo(() => `/api/plugins/${pluginId}/resources/release?format=zip`, [pluginId]);
@@ -301,13 +302,21 @@ export default function PluginDetailPage() {
     const total = ratings.length;
     const average = total ? ratings.reduce((sum, item) => sum + item.rating, 0) / total : 0;
     const distribution = [5, 4, 3, 2, 1].map((score) => ({ score, count: ratings.filter((item) => item.rating === score).length }));
-    return { total, average, distribution, commentCount: ratings.filter((item) => item.comment).length };
+    return { total, average, distribution };
   }, [ratings]);
 
-  const recentReviews = React.useMemo(() => ratings
-    .filter((item) => item.comment)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 2), [ratings]);
+  const publishedReviews = React.useMemo(() => ratings
+    .filter((item) => item.comment && item.comment_status === "published")
+    .sort((a, b) => new Date(b.comment_created_at || b.created_at).getTime() - new Date(a.comment_created_at || a.created_at).getTime()), [ratings]);
+
+  const ownComment = React.useMemo(() => user
+    ? ratings.find((item) => item.user_id === user.id && item.comment) ?? null
+    : null, [ratings, user]);
+
+  const recentReviews = React.useMemo(
+    () => publishedReviews.filter((item) => item.user_id !== ownComment?.user_id).slice(0, 2),
+    [publishedReviews, ownComment?.user_id],
+  );
 
   const openRatingDialog = (selectedRating?: number) => {
     if (!user) {
@@ -337,6 +346,13 @@ export default function PluginDetailPage() {
       });
       const body = await response.json();
       if (!response.ok || !body?.ok) throw new Error(body?.error || "提交评价失败");
+      dispatchToast(
+        <Toast>
+          <ToastTitle>评论已提交</ToastTitle>
+          <ToastBody>{body?.data?.message ?? "审核通过后将公开展示。"}</ToastBody>
+        </Toast>,
+        { intent: "success", timeout: 4000 },
+      );
       setIsRatingDialogOpen(false);
       await loadRatings();
     } catch (error: any) {
@@ -572,7 +588,7 @@ export default function PluginDetailPage() {
                <Text weight="semibold" size={500}>评分和评价</Text>
                <div className="flex items-center gap-1">
                  {ratings.some((item) => item.user_id === user?.id) && <Button appearance="subtle" icon={<EditRegular />} onClick={() => openRatingDialog()} aria-label="修改评价" />}
-                 {ratingSummary.commentCount > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
+                  {publishedReviews.length > 0 && <Button appearance="subtle" icon={<ChevronRightRegular />} onClick={() => setIsReviewsDialogOpen(true)} aria-label="查看全部评价" />}
                </div>
              </div>
              <Divider className="my-3" />
@@ -585,7 +601,7 @@ export default function PluginDetailPage() {
                </div>
              ) : (
                <>
-                 {ratingSummary.total > 0 && <div className="grid w-full max-w-[360px] grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-4 py-1">
+                {ratingSummary.total > 0 && <div className="grid w-full max-w-[360px] grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-4 py-1">
                    <div className="flex flex-col items-center justify-between self-stretch text-center">
                      <Text weight="semibold" className="block !text-6xl !leading-none tracking-tight">{ratingSummary.average.toFixed(1)}</Text>
                      <Text size={200} className="block text-gray-500 dark:text-gray-400">{ratingSummary.total} 个评分</Text>
@@ -608,12 +624,9 @@ export default function PluginDetailPage() {
                   <div className="flex-shrink-0"><Rating value={0} size="medium" onChange={(_, data) => openRatingDialog(data.value)} aria-label={`评价 ${manifest.name}`} /></div>
                   <Text size={300}>你如何评价 {manifest.name}?</Text>
                 </div>}
-                 {recentReviews.length > 0 && <div className="mt-5">
-                   <div className="space-y-0">
-                     {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact onReport={(target) => setReportTarget({ subject: `举报评论：${manifest.name}`, context: `插件“${manifest.name}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />)}
-                   </div>
-                 </div>}
-                 {ratingSummary.commentCount > 0 && <Button appearance="transparent" className="!mt-3 !px-0" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{ratingSummary.commentCount}）</Button>}
+                 {ownComment && <PluginOwnReviewCard review={ownComment} onReport={(target) => setReportTarget({ subject: `举报评论：${manifest.name}`, context: `插件“${manifest.name}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />}
+                 {recentReviews.map((review) => <PluginReviewItem key={review.user_id} review={review} compact onReport={(target) => setReportTarget({ subject: `举报评论：${manifest.name}`, context: `插件“${manifest.name}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />)}
+                 {publishedReviews.length > 0 && <Button appearance="subtle" onClick={() => setIsReviewsDialogOpen(true)}>查看全部（{publishedReviews.length}）</Button>}
                </>
              )}
            </Card>
@@ -627,7 +640,7 @@ export default function PluginDetailPage() {
            </Card>
          </aside>
       </div>)}
-      <CommentsDialog open={isReviewsDialogOpen} reviews={ratings} onOpenChange={setIsReviewsDialogOpen} onReport={(target) => setReportTarget({ subject: `举报评论：${manifest?.name || pluginId}`, context: `插件“${manifest?.name || pluginId}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />
+      <CommentsDialog open={isReviewsDialogOpen} reviews={publishedReviews} onOpenChange={setIsReviewsDialogOpen} onReport={(target) => setReportTarget({ subject: `举报评论：${manifest?.name || pluginId}`, context: `插件“${manifest?.name || pluginId}”中的评论（用户：${target.profile?.display_name || "匿名用户"}，内容：${target.comment || "无文字内容"}）` })} />
       <ReportDialog open={!!reportTarget} subject={reportTarget?.subject || "举报插件广场内容"} context={reportTarget?.context || ""} onOpenChange={(open) => { if (!open) setReportTarget(null); }} />
       <RatingDialog
         open={isRatingDialogOpen}

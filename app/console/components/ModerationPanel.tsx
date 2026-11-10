@@ -29,7 +29,7 @@ export default function ModerationPanel({ items, loading, filter, onFilterChange
         <Card className="!p-5 min-w-0">
             <Toolbar className="px-0 gap-3" style={{ flexWrap: "wrap" }}>
                 <Text weight="semibold" size={500} style={{ marginRight: "auto" }}>
-                    审核队列
+                    插件审核队列
                 </Text>
                 <Select value={filter} onChange={(_, data) => onFilterChange(data.value)}>
                     <option value="all">全部状态</option>

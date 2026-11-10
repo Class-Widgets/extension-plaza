@@ -56,6 +56,9 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 | 13 | GET | `/api/plugins/[pluginId]/resources/release` | 插件发布包（重定向） |
 | 14 | POST | `/api/plugins/[pluginId]/publish` | 发布 / 更新插件（代理 Edge Function） |
 | 15 | GET | `/api/authors/[authorId]` | 作者信息及投稿插件 |
+| 16 | GET / POST | `/api/plugins/[pluginId]/comments` | 评分与审核评论 |
+| 17 | POST | `/api/profiles/names` | 控制台批量读取用户昵称（内部接口） |
+| 18 | GET | `/api/console/downloads` | 控制台统计本人插件下载量（内部接口） |
 
 ### 通用查询参数
 
@@ -492,7 +495,7 @@ curl "http://localhost:3000/api/plugins/popular?limit=5"
 
 获取数据库中被标记为优秀插件认证（`is_certified = true`）且状态为 `published` 的插件。该字段表示优秀插件推荐，不代表审核状态，也不属于审核系统。结果按平均评分降序排列；平均评分相同时按 GitHub Release 资源的下载量降序排列；下载量仍相同时按评分人数降序排列。
 
-下载量通过插件的 `repo_url` 查询 GitHub Releases 及其 assets 的 `download_count` 汇总得到。如果 GitHub 下载量查询失败或仓库没有可统计的 release，下载量按 `0` 处理，因此只作为评分相同时的 fallback 排序依据。下载统计会在服务端缓存 30 分钟。
+下载量通过插件的 `repo_url` 查询 GitHub Releases 及其 assets 的 `download_count` 汇总得到。如果 GitHub 下载量查询失败或仓库没有可统计的 release，下载量按 `0` 处理，因此只作为评分相同时的 fallback 排序依据。下载统计按仓库在服务端缓存 6 小时，列表、分类、搜索和按下载量排序共用同一份结果；控制台前端也缓存 6 小时。控制台手动刷新仅重算当前开发者自己的插件，并绕过这些缓存，前后端均有 60 秒冷却，GitHub 请求失败时保留上次结果。
 
 **参数**
 
@@ -755,6 +758,82 @@ curl "http://localhost:3000/api/authors/550e8400-e29b-41d4-a716-446655440000"
   "error": "用户不存在"
 }
 ```
+
+---
+
+## 13. 评分与评论 API
+
+评分与文字评论分开存储：
+
+- `cw.cw_plugins_rating` 保存 1–5 星评分，评分统计和排序不受评论审核影响。
+- `cw.cw_plugin_rating_comments` 保存评论内容，状态为 `pending` / `published` / `rejected`。
+- 公开页面只展示 `published` 评论；作者仍可读取自己 `pending` 或 `rejected` 的评论。
+- `MASTER` 与 `CW_MAINTAINER` 可以在控制台的独立「评论审核队列」中通过或拒绝评论；「评分评论」页面继续供开发者查看。
+- 拒绝评论时必须填写审核说明；作者可在「我的评论」中查看审核结果和拒绝原因，并会收到未读通知。
+
+### 13.1 获取评分与评论
+
+`GET /api/plugins/[pluginId]/comments`
+
+匿名请求仅返回已发布评论。携带登录 Token 时，还会返回当前用户自己的待审核/已拒绝评论。每条评分记录都会返回，即使它没有文字评论。
+
+**鉴权**
+
+可选：`Authorization: Bearer <access_token>`。
+
+**返回范例**
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "plugin_id": "com.classwidgets.example-plugin",
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "rating": 5,
+      "comment": "很好用",
+      "comment_status": "published",
+      "review_comment": null,
+      "comment_created_at": "2026-11-10T08:00:00.000Z",
+      "comment_updated_at": "2026-11-10T08:00:00.000Z",
+      "created_at": "2026-11-10T08:00:00.000Z",
+      "updated_at": "2026-11-10T08:00:00.000Z",
+      "profile": { "id": "550e8400-e29b-41d4-a716-446655440000", "display_name": "张三" }
+    }
+  ]
+}
+```
+
+当作者查看自己被拒绝的评论时，`review_comment` 会包含管理员填写的拒绝原因。
+
+### 13.2 提交评分与评论
+
+`POST /api/plugins/[pluginId]/comments`
+
+**鉴权**
+
+必填：`Authorization: Bearer <access_token>`。
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `rating` | number | 是 | 1–5 的整数 |
+| `comment` | string | 否 | 最多 64 个字符；提交新评论或修改后重新进入审核 |
+
+**返回范例**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "comment_status": "pending",
+    "message": "评论已提交，审核通过后公开显示。"
+  }
+}
+```
+
+未填写评论时 `comment_status` 为 `null`，且会删除该作者此前留下的评论。评分仍会立即更新并计入统计。
 
 ---
 

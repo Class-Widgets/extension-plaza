@@ -30,7 +30,10 @@ export default function RatingDialog({ open, pluginName, rating, comment, submit
                         <Divider />
                         <div className="space-y-2">
                             <Text weight="semibold">描述</Text>
-                            <Textarea className="w-full" value={comment} onChange={(_, data) => onCommentChange(data.value.slice(0, 64))} maxLength={64} resize="vertical" placeholder="与此应用共享体验(可选)" aria-label="评论内容" />
+                            <MessageBar intent="info">
+                                <MessageBarBody>评论提交后将进入审核，审核通过后公开显示。星级评分即时计入统计，审核期间评论仅本人可见。</MessageBarBody>
+                            </MessageBar>
+                            <Textarea className="w-full" value={comment} onChange={(_, data) => onCommentChange(data.value.slice(0, 64))} maxLength={64} resize="vertical" placeholder="与此应用共享体验（可选）" aria-label="评论内容" />
                             <Text size={200} className="block text-right text-gray-500 dark:text-gray-400">{comment.length}/64</Text>
                         </div>
                         {error && <MessageBar intent="error"><MessageBarBody>{error}</MessageBarBody></MessageBar>}

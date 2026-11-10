@@ -1,4 +1,4 @@
-export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "allPlugins" | "certified" | "ratings";
+export type ConsoleView = "overview" | "submit" | "myPlugins" | "tokens" | "moderation" | "commentModeration" | "allPlugins" | "certified" | "ratings" | "myComments";
 export type AccountRole = "USER" | "MASTER" | "CW_MAINTAINER";
 
 export type Profile = {
@@ -71,10 +71,33 @@ export type PluginRatingRow = {
     user_id: string;
     rating: number;
     comment: string | null;
+    comment_status?: "pending" | "published" | "rejected" | null;
+    comment_created_at?: string | null;
+    comment_updated_at?: string | null;
+    review_comment?: string | null;
+    reviewed_at?: string | null;
+    reviewed_by?: string | null;
     created_at: string;
     updated_at: string;
     cw_plugins?: PluginRow | PluginRow[] | null;
     profile?: Pick<Profile, "id" | "display_name"> | null;
+};
+
+export type PluginCommentRow = {
+    plugin_id: string;
+    user_id: string;
+    content: string;
+    status: "pending" | "published" | "rejected";
+    created_at: string;
+    updated_at: string;
+    reviewed_at: string | null;
+    reviewed_by: string | null;
+    review_comment: string | null;
+};
+
+export type MyCommentRow = PluginCommentRow & {
+    plugin?: Pick<PluginRow, "id" | "name"> | null;
+    rating?: number | null;
 };
 
 export type PluginForm = {

@@ -24,10 +24,12 @@ export default function CommentsDialog({ open, reviews, onOpenChange, onReport }
     const [sort, setSort] = React.useState<CommentSort>("recent");
     const [currentPage, setCurrentPage] = React.useState(1);
 
-    const sortedReviews = React.useMemo(() => reviews.filter((review) => review.comment).sort((a, b) => {
-        if (sort === "highest") return b.rating - a.rating || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        if (sort === "lowest") return a.rating - b.rating || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const sortedReviews = React.useMemo(() => reviews.filter((review) => review.comment && review.comment_status === "published").sort((a, b) => {
+        const createdA = new Date(a.comment_created_at || a.created_at).getTime();
+        const createdB = new Date(b.comment_created_at || b.created_at).getTime();
+        if (sort === "highest") return b.rating - a.rating || createdB - createdA;
+        if (sort === "lowest") return a.rating - b.rating || createdB - createdA;
+        return createdB - createdA;
     }), [reviews, sort]);
 
     const totalPages = Math.ceil(sortedReviews.length / reviewsPerPage);

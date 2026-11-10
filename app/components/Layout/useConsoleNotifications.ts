@@ -10,13 +10,15 @@ const notificationEvent = "extension-plaza:console-notifications-read";
 export type ConsoleNotificationCounts = {
     moderationUpdates: number;
     ratingUpdates: number;
+    commentUpdates: number;
+    commentQueue: number;
     moderationQueue: number;
 };
 
 export type ConsoleNotificationCategory = keyof ConsoleNotificationCounts;
 
-const notificationCategories: ConsoleNotificationCategory[] = ["moderationUpdates", "ratingUpdates", "moderationQueue"];
-const emptyCounts: ConsoleNotificationCounts = { moderationUpdates: 0, ratingUpdates: 0, moderationQueue: 0 };
+const notificationCategories: ConsoleNotificationCategory[] = ["moderationUpdates", "ratingUpdates", "commentUpdates", "commentQueue", "moderationQueue"];
+const emptyCounts: ConsoleNotificationCounts = { moderationUpdates: 0, ratingUpdates: 0, commentUpdates: 0, commentQueue: 0, moderationQueue: 0 };
 
 const isValidReadAt = (value: string | null) => {
     const date = value ? new Date(value) : null;
@@ -66,10 +68,16 @@ export function useConsoleNotifications(userId: string | undefined, roles: strin
             ]);
 
             const pluginIds = (plugins || []).map((plugin) => plugin.id);
-            const [ratingsResult, moderationQueueResult] = await Promise.all([
+            const [commentsResult, commentUpdatesResult, commentQueueResult, moderationQueueResult] = await Promise.all([
                 pluginIds.length > 0
-                    ? supabase.schema("cw").from("cw_plugins_rating").select("plugin_id", { count: "exact", head: true })
-                        .in("plugin_id", pluginIds).neq("user_id", userId).gt("updated_at", lastReadAt.ratingUpdates)
+                    ? supabase.schema("cw").from("cw_plugin_rating_comments").select("plugin_id", { count: "exact", head: true })
+                        .in("plugin_id", pluginIds).eq("status", "published").neq("user_id", userId).gt("updated_at", lastReadAt.ratingUpdates)
+                    : Promise.resolve({ count: 0 }),
+                supabase.schema("cw").from("cw_plugin_rating_comments").select("plugin_id", { count: "exact", head: true })
+                    .eq("user_id", userId).in("status", ["published", "rejected"]).gt("reviewed_at", lastReadAt.commentUpdates),
+                canModerate
+                    ? supabase.schema("cw").from("cw_plugin_rating_comments").select("plugin_id", { count: "exact", head: true })
+                        .eq("status", "pending").gt("updated_at", lastReadAt.commentQueue)
                     : Promise.resolve({ count: 0 }),
                 canModerate
                     ? supabase.schema("cw").from("cw_plugins_moderation_requests").select("id", { count: "exact", head: true })
@@ -78,7 +86,13 @@ export function useConsoleNotifications(userId: string | undefined, roles: strin
             ]);
 
             if (!mounted) return;
-            setCounts({ moderationUpdates: moderationUpdates || 0, ratingUpdates: ratingsResult.count || 0, moderationQueue: moderationQueueResult.count || 0 });
+            setCounts({
+                moderationUpdates: moderationUpdates || 0,
+                ratingUpdates: commentsResult.count || 0,
+                commentUpdates: commentUpdatesResult.count || 0,
+                commentQueue: commentQueueResult.count || 0,
+                moderationQueue: moderationQueueResult.count || 0,
+            });
         };
 
         void loadNotifications();
@@ -118,7 +132,7 @@ export function useConsoleNotifications(userId: string | undefined, roles: strin
         return () => { window.removeEventListener("storage", onStorage); window.removeEventListener(notificationEvent, onNotificationRead); };
     }, [userId]);
 
-    const count = counts.moderationUpdates + counts.ratingUpdates + counts.moderationQueue;
+    const count = counts.moderationUpdates + counts.ratingUpdates + counts.commentUpdates + counts.commentQueue + counts.moderationQueue;
     return {
         count,
         counts,

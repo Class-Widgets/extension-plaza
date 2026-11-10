@@ -18,6 +18,7 @@ import {
 } from "@fluentui/react-components";
 import {
     AddRegular,
+    CommentRegular,
     HomeRegular,
     KeyRegular,
     PlugConnectedRegular,
@@ -28,8 +29,8 @@ import { supabase } from "@/lib/supabase";
 import { resolvePluginBranch } from "@/lib/githubCheck";
 import { useConsoleNotifications } from "@/app/components/Layout/useConsoleNotifications";
 
-import type { AccountRole, ConsoleView, ModerationRequest, PluginForm, PluginRatingRow, PluginRow, Profile, PublishToken, TagRow } from "./types";
-import { createPlainToken, emptyPluginForm, normalizePluginRows, sha256Hex } from "./utils";
+import type { AccountRole, ConsoleView, ModerationRequest, MyCommentRow, PluginCommentRow, PluginForm, PluginRatingRow, PluginRow, Profile, PublishToken, TagRow } from "./types";
+import { createPlainToken, emptyPluginForm, normalizePluginRatingRow, normalizePluginRows, sha256Hex } from "./utils";
 import { useAdminToasts } from "./components/useAdminToasts";
 
 import OverviewPanel from "./components/OverviewPanel";
@@ -37,6 +38,8 @@ import SubmitPanel from "./components/SubmitPanel";
 import MyPluginsPanel from "./components/MyPluginsPanel";
 import TokensPanel from "./components/TokensPanel";
 import ModerationPanel from "./components/ModerationPanel";
+import CommentModerationPanel from "./components/CommentModerationPanel";
+import MyCommentsPanel from "./components/MyCommentsPanel";
 import PluginTablePanel from "./components/PluginTablePanel";
 import RatingCommentsPanel from "./components/RatingCommentsPanel";
 import CertifiedPluginsPanel from "./components/CertifiedPluginsPanel";
@@ -45,6 +48,35 @@ import TextDialog from "./components/dialogs/TextDialog";
 import ModerationActionDialog from "./components/dialogs/ModerationActionDialog";
 import PluginDetailDialog from "./components/dialogs/PluginDetailDialog";
 import Footer from "@/app/components/Layout/Footer";
+
+const DOWNLOAD_CACHE_TTL = 6 * 60 * 60 * 1000;
+const DOWNLOAD_REFRESH_COOLDOWN = 60 * 1000;
+const downloadCacheKey = (userId: string) => `extension-plaza:console-downloads:${userId}`;
+const downloadRefreshKey = (userId: string) => `extension-plaza:console-downloads-refresh:${userId}`;
+
+function readDownloadCache(userId: string) {
+    if (typeof window === "undefined") return null;
+    try {
+        const cached = JSON.parse(window.localStorage.getItem(downloadCacheKey(userId)) || "null") as { total?: number; cachedAt?: number } | null;
+        return cached && typeof cached.total === "number" && typeof cached.cachedAt === "number" && Date.now() - cached.cachedAt < DOWNLOAD_CACHE_TTL
+            ? cached
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+async function fetchProfileMap(userIds: string[]) {
+    if (userIds.length === 0) return new Map<string, Pick<Profile, "id" | "display_name">>();
+    const response = await fetch("/api/profiles/names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: userIds }),
+    });
+    const body = await response.json().catch(() => null) as { ok?: boolean; data?: Pick<Profile, "id" | "display_name">[]; error?: string } | null;
+    if (!response.ok || !body?.ok) throw new Error(body?.error || "读取用户昵称失败");
+    return new Map((body.data ?? []).map((profile) => [profile.id, profile]));
+}
 
 export default function AdminPage() {
     const router = useRouter();
@@ -60,6 +92,8 @@ export default function AdminPage() {
     const [tokens, setTokens] = React.useState<PublishToken[]>([]);
     const [moderation, setModeration] = React.useState<ModerationRequest[]>([]);
     const [ratings, setRatings] = React.useState<PluginRatingRow[]>([]);
+    const [commentModeration, setCommentModeration] = React.useState<PluginRatingRow[]>([]);
+    const [myComments, setMyComments] = React.useState<MyCommentRow[]>([]);
     const [loadingData, setLoadingData] = React.useState(false);
     const { toastError, toastSuccess } = useAdminToasts();
     const [form, setForm] = React.useState<PluginForm>(emptyPluginForm);
@@ -70,10 +104,17 @@ export default function AdminPage() {
     const [certifiedKeyword, setCertifiedKeyword] = React.useState("");
     const [ratingFilter, setRatingFilter] = React.useState("all");
     const [ratingKeyword, setRatingKeyword] = React.useState("");
+    const [commentModerationFilter, setCommentModerationFilter] = React.useState("pending");
     const [navOpen, setNavOpen] = React.useState(false);
     const [navType, setNavType] = React.useState<"inline" | "overlay">("inline");
     const [myModerationRequests, setMyModerationRequests] = React.useState<ModerationRequest[]>([]);
     const [averageRating, setAverageRating] = React.useState(0);
+    const [commentCount, setCommentCount] = React.useState(0);
+    const [downloadCount, setDownloadCount] = React.useState(0);
+    const [downloadsLoading, setDownloadsLoading] = React.useState(false);
+    const [downloadRefreshCoolingDown, setDownloadRefreshCoolingDown] = React.useState(false);
+    const downloadTotalRef = React.useRef(0);
+    const downloadRefreshAvailableAtRef = React.useRef(0);
     const [pluginDetailOpen, setPluginDetailOpen] = React.useState(false);
     const [detailPlugin, setDetailPlugin] = React.useState<PluginRow | null>(null);
     const [detailRequests, setDetailRequests] = React.useState<ModerationRequest[]>([]);
@@ -112,10 +153,16 @@ export default function AdminPage() {
     const canManageCertified = canModerate;
     const canAccessConsole = Boolean(profile) || userRoles.length > 0;
     const canViewRatings = canAccessConsole;
+    const myPluginIds = React.useMemo(() => myPlugins.map((plugin) => plugin.id), [myPlugins]);
 
     const openConsoleView = React.useCallback((nextView: ConsoleView) => {
         if (nextView === "myPlugins") markNotificationCategoryRead("moderationUpdates");
         if (nextView === "ratings") markNotificationCategoryRead("ratingUpdates");
+        if (nextView === "myComments") markNotificationCategoryRead("commentUpdates");
+        if (nextView === "commentModeration") {
+            setCommentModerationFilter("pending");
+            markNotificationCategoryRead("commentQueue");
+        }
         if (nextView === "moderation") markNotificationCategoryRead("moderationQueue");
         setView(nextView);
     }, [markNotificationCategoryRead]);
@@ -176,7 +223,7 @@ export default function AdminPage() {
         if (!user) return;
         setLoadingData(true);
 
-        let query = supabase
+        const query = supabase
             .schema("cw")
             .from("cw_plugins")
             .select(PLUGIN_WITH_TAGS_SELECT)
@@ -246,6 +293,7 @@ export default function AdminPage() {
     const loadAverageRating = React.useCallback(async () => {
         if (!user) {
             setAverageRating(0);
+            setCommentCount(0);
             return;
         }
 
@@ -257,15 +305,25 @@ export default function AdminPage() {
 
         if (pluginsError || !plugins || plugins.length === 0) {
             setAverageRating(0);
+            setCommentCount(0);
             return;
         }
 
         const pluginIds = plugins.map((plugin) => plugin.id);
-        const { data, error } = await supabase
-            .schema("cw")
-            .from("cw_plugins_rating")
-            .select("rating")
-            .in("plugin_id", pluginIds);
+        const [{ data, error }, { count: comments, error: commentsError }] = await Promise.all([
+            supabase
+                .schema("cw")
+                .from("cw_plugins_rating")
+                .select("rating")
+                .in("plugin_id", pluginIds),
+            supabase
+                .schema("cw")
+                .from("cw_plugin_rating_comments")
+                .select("plugin_id", { count: "exact", head: true })
+                .in("plugin_id", pluginIds)
+                .eq("status", "published")
+                .neq("user_id", user.id),
+        ]);
 
         if (error || !data || data.length === 0) {
             setAverageRating(0);
@@ -273,7 +331,88 @@ export default function AdminPage() {
             const sum = data.reduce((acc, row) => acc + row.rating, 0);
             setAverageRating(Math.round((sum / data.length) * 10) / 10);
         }
+        setCommentCount(commentsError ? 0 : comments || 0);
     }, [user]);
+
+    const loadDownloads = React.useCallback(async (refresh = false) => {
+        if (!user) {
+            setDownloadCount(0);
+            return;
+        }
+
+        const cached = readDownloadCache(user.id);
+        if (!refresh && cached) {
+            setDownloadCount(cached.total!);
+            downloadTotalRef.current = cached.total!;
+            return;
+        }
+
+        if (refresh) {
+            const lastRefreshAt = Number(window.localStorage.getItem(downloadRefreshKey(user.id)) || 0);
+            const remaining = lastRefreshAt + DOWNLOAD_REFRESH_COOLDOWN - Date.now();
+            if (remaining > 0) {
+                downloadRefreshAvailableAtRef.current = lastRefreshAt + DOWNLOAD_REFRESH_COOLDOWN;
+                setDownloadRefreshCoolingDown(true);
+                return;
+            }
+            window.localStorage.setItem(downloadRefreshKey(user.id), String(Date.now()));
+            downloadRefreshAvailableAtRef.current = Date.now() + DOWNLOAD_REFRESH_COOLDOWN;
+            setDownloadRefreshCoolingDown(true);
+        }
+
+        setDownloadsLoading(true);
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const response = await fetch(`/api/console/downloads${refresh ? "?refresh=true" : ""}`, {
+                headers: sessionData.session?.access_token
+                    ? { Authorization: `Bearer ${sessionData.session.access_token}` }
+                    : undefined,
+                cache: "no-store",
+            });
+            const body = await response.json().catch(() => null) as {
+                ok?: boolean;
+                data?: { total: number; unavailable: number; refreshed: boolean };
+                error?: string;
+            } | null;
+            if (!response.ok || !body?.ok || !body.data) throw new Error(body?.error || "读取下载量失败");
+            const nextTotal = body.data.unavailable > 0 && body.data.total < downloadTotalRef.current
+                ? downloadTotalRef.current
+                : body.data.total;
+            downloadTotalRef.current = nextTotal;
+            setDownloadCount(nextTotal);
+            window.localStorage.setItem(downloadCacheKey(user.id), JSON.stringify({ total: nextTotal, cachedAt: Date.now() }));
+            if (body.data.unavailable > 0) {
+                toastError(`GitHub 暂时无法返回部分仓库的下载量，已保留上次结果。`);
+            } else if (refresh && !body.data.refreshed) {
+                toastError("刷新太频繁，请稍后再试。");
+            }
+        } catch (error) {
+            toastError(error instanceof Error ? error.message : String(error));
+        } finally {
+            setDownloadsLoading(false);
+        }
+    }, [toastError, user]);
+
+    React.useEffect(() => {
+        if (!user) return;
+        const lastRefreshAt = Number(window.localStorage.getItem(downloadRefreshKey(user.id)) || 0);
+        const availableAt = lastRefreshAt + DOWNLOAD_REFRESH_COOLDOWN;
+        if (availableAt > Date.now()) {
+            downloadRefreshAvailableAtRef.current = availableAt;
+            setDownloadRefreshCoolingDown(true);
+        }
+    }, [user]);
+
+    React.useEffect(() => {
+        if (!downloadRefreshCoolingDown) return;
+        const timer = window.setInterval(() => {
+            if (Date.now() >= downloadRefreshAvailableAtRef.current) {
+                setDownloadRefreshCoolingDown(false);
+                window.clearInterval(timer);
+            }
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [downloadRefreshCoolingDown]);
 
     const loadModeration = React.useCallback(async () => {
         if (!canModerate) return;
@@ -410,21 +549,21 @@ export default function AdminPage() {
         if (!canViewRatings) return;
         setLoadingData(true);
 
-        const ratingBaseColumns = `
-            plugin_id,
-            user_id,
-            rating,
-            comment,
-            created_at,
-            updated_at
-        `;
         const ratingWithPluginTagsSelect = `
             plugin_id,
             user_id,
             rating,
-            comment,
             created_at,
             updated_at,
+            cw_plugin_rating_comments(
+                content,
+                status,
+                created_at,
+                updated_at,
+                review_comment,
+                reviewed_at,
+                reviewed_by
+            ),
             cw_plugins(
                 id,
                 owner_id,
@@ -463,21 +602,14 @@ export default function AdminPage() {
             return;
         }
 
-        const rows = (result.data || []).map((item) => {
-            const rating = item as PluginRatingRow;
-            const pluginValue = rating.cw_plugins;
-            if (Array.isArray(pluginValue)) return { ...rating, cw_plugins: normalizePluginRows(pluginValue) };
-            if (pluginValue) return { ...rating, cw_plugins: normalizePluginRows([pluginValue])[0] };
-            return rating;
-        });
+        const rows = (result.data || []).map(normalizePluginRatingRow);
         const userIds = Array.from(new Set(rows.map((item) => item.user_id)));
-        const { data: profiles, error: profilesError } = userIds.length
-            ? await supabase.from("profiles").select("id, display_name").in("id", userIds)
-            : { data: [], error: null };
-
-        if (profilesError) toastError(`读取评分用户昵称失败：${profilesError.message}`);
-
-        const profileMap = new Map((profiles || []).map((item) => [item.id, item]));
+        let profileMap = new Map<string, Pick<Profile, "id" | "display_name">>();
+        try {
+            profileMap = await fetchProfileMap(userIds);
+        } catch (error) {
+            toastError(`读取评分用户昵称失败：${error instanceof Error ? error.message : String(error)}`);
+        }
         const trimmedKeyword = ratingKeyword.trim().toLowerCase();
         const withProfiles = rows.map((item) => ({ ...item, profile: profileMap.get(item.user_id) ?? null }));
         const filteredRows = trimmedKeyword
@@ -497,6 +629,112 @@ export default function AdminPage() {
         setLoadingData(false);
     }, [canViewRatings, ratingFilter, ratingKeyword, toastError]);
 
+    const loadCommentModeration = React.useCallback(async () => {
+        if (!canModerate) return;
+        setLoadingData(true);
+
+        let query = supabase
+            .schema("cw")
+            .from("cw_plugins_rating")
+            .select(`
+                plugin_id,
+                user_id,
+                rating,
+                created_at,
+                updated_at,
+                cw_plugin_rating_comments!inner(
+                    content,
+                    status,
+                    created_at,
+                    updated_at,
+                    review_comment,
+                    reviewed_at,
+                    reviewed_by
+                ),
+                cw_plugins(
+                    id,
+                    owner_id,
+                    name,
+                    description,
+                    repo_url,
+                    branch,
+                    version,
+                    api_version,
+                    readme,
+                    icon,
+                    status,
+                    is_certified,
+                    created_at,
+                    updated_at,
+                    cw_plugin_item_tags(tag_id, cw_plugin_tags(id, name, created_at))
+                )
+            `)
+            .order("updated_at", { ascending: false });
+
+        if (commentModerationFilter !== "all") {
+            query = query.eq("cw_plugin_rating_comments.status", commentModerationFilter);
+        }
+
+        const result = await query;
+
+        if (result.error) {
+            setCommentModeration([]);
+            toastError(result.error.message);
+            setLoadingData(false);
+            return;
+        }
+
+        const rows = (result.data || []).map(normalizePluginRatingRow);
+        const userIds = Array.from(new Set(rows.map((item) => item.user_id)));
+        let profileMap = new Map<string, Pick<Profile, "id" | "display_name">>();
+        try {
+            profileMap = await fetchProfileMap(userIds);
+        } catch (error) {
+            toastError(`读取评论用户昵称失败：${error instanceof Error ? error.message : String(error)}`);
+        }
+        setCommentModeration(rows.map((item) => ({ ...item, profile: profileMap.get(item.user_id) ?? null })));
+        setLoadingData(false);
+    }, [canModerate, commentModerationFilter, toastError]);
+
+    const loadMyComments = React.useCallback(async () => {
+        if (!user) return;
+        setLoadingData(true);
+
+        const { data, error } = await supabase
+            .schema("cw")
+            .from("cw_plugin_rating_comments")
+            .select("plugin_id, user_id, content, status, review_comment, created_at, updated_at, reviewed_at, reviewed_by")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false });
+
+        if (error) {
+            setMyComments([]);
+            toastError(error.message);
+            setLoadingData(false);
+            return;
+        }
+
+        const comments = (data || []) as unknown as PluginCommentRow[];
+        const pluginIds = Array.from(new Set(comments.map((item) => item.plugin_id)));
+        const [{ data: pluginRows }, { data: ratingRows }] = await Promise.all([
+            pluginIds.length
+                ? supabase.schema("cw").from("cw_plugins").select("id, name").in("id", pluginIds)
+                : Promise.resolve({ data: [], error: null }),
+            pluginIds.length
+                ? supabase.schema("cw").from("cw_plugins_rating").select("plugin_id, rating").eq("user_id", user.id).in("plugin_id", pluginIds)
+                : Promise.resolve({ data: [], error: null }),
+        ]);
+
+        const pluginMap = new Map((pluginRows || []).map((plugin) => [plugin.id, plugin]));
+        const ratingMap = new Map((ratingRows || []).map((rating) => [rating.plugin_id, rating.rating]));
+        setMyComments(comments.map((comment) => ({
+            ...comment,
+            plugin: pluginMap.get(comment.plugin_id) ?? null,
+            rating: ratingMap.get(comment.plugin_id) ?? null,
+        })));
+        setLoadingData(false);
+    }, [toastError, user]);
+
     React.useEffect(() => {
         if (!authLoading) loadProfile();
     }, [authLoading, loadProfile]);
@@ -514,7 +752,7 @@ export default function AdminPage() {
 
     React.useEffect(() => {
         if (authLoading || profileLoading || !user || !canAccessConsole) return;
-        if ((view === "moderation" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll) || (view === "certified" && !canManageCertified)) {
+        if ((view === "moderation" && !canModerate) || (view === "commentModeration" && !canModerate) || (view === "ratings" && !canViewRatings) || (view === "allPlugins" && !canManageAll) || (view === "certified" && !canManageCertified)) {
             router.replace("/console/redirect/forbidden");
         }
     }, [authLoading, canAccessConsole, canManageAll, canManageCertified, canModerate, canViewRatings, profileLoading, router, user, view]);
@@ -526,14 +764,17 @@ export default function AdminPage() {
         loadTags();
         loadMyModerationRequests();
         loadAverageRating();
-    }, [loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user, view]);
+        loadDownloads();
+    }, [loadDownloads, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, user, view]);
 
     React.useEffect(() => {
         if (view === "moderation" && canModerate) loadModeration();
+        if (view === "commentModeration" && canModerate) loadCommentModeration();
         if (view === "ratings" && canViewRatings) loadRatings();
+        if (view === "myComments") loadMyComments();
         if (view === "allPlugins" && canManageAll) loadAllPlugins();
         if (view === "certified" && canManageCertified) loadCertifiedPlugins();
-    }, [canModerate, canManageAll, canManageCertified, canViewRatings, loadAllPlugins, loadCertifiedPlugins, loadModeration, loadRatings, view]);
+    }, [canModerate, canManageAll, canManageCertified, canViewRatings, loadAllPlugins, loadCertifiedPlugins, loadCommentModeration, loadModeration, loadMyComments, loadRatings, view]);
 
     React.useEffect(() => {
         if (!user) return;
@@ -543,13 +784,16 @@ export default function AdminPage() {
             loadTags();
             loadMyModerationRequests();
             loadAverageRating();
+            loadDownloads();
             if (view === "moderation" && canModerate) loadModeration();
+            if (view === "commentModeration" && canModerate) loadCommentModeration();
             if (view === "ratings" && canViewRatings) loadRatings();
+            if (view === "myComments") loadMyComments();
             if (view === "allPlugins" && canManageAll) loadAllPlugins();
             if (view === "certified" && canManageCertified) loadCertifiedPlugins();
         }, 30000);
         return () => clearInterval(interval);
-    }, [user, view, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, canModerate, canManageAll, canManageCertified, canViewRatings, loadModeration, loadRatings, loadAllPlugins, loadCertifiedPlugins]);
+    }, [user, view, loadMyPlugins, loadTokens, loadTags, loadMyModerationRequests, loadAverageRating, loadDownloads, canModerate, canManageAll, canManageCertified, canViewRatings, loadCommentModeration, loadModeration, loadMyComments, loadRatings, loadAllPlugins, loadCertifiedPlugins]);
 
     const submitPlugin = async () => {
         if (!user) return;
@@ -753,6 +997,36 @@ export default function AdminPage() {
         setLoadingData(false);
     };
 
+    const reviewComment = async (
+        item: PluginRatingRow,
+        status: "published" | "rejected",
+        reason?: string,
+    ) => {
+        if (!canModerate || !item.comment) return;
+        const reviewComment = (reason ?? "").trim();
+        if (status === "rejected" && !reviewComment) {
+            toastError("请填写拒绝原因。");
+            return;
+        }
+        setLoadingData(true);
+
+        const { error: reviewError } = await supabase.schema("cw").rpc("review_plugin_rating_comment", {
+            p_plugin_id: item.plugin_id,
+            p_user_id: item.user_id,
+            p_status: status,
+            p_review_comment: status === "rejected" ? reviewComment : null,
+        });
+
+        if (reviewError) {
+            toastError(reviewError.message);
+        } else {
+            toastSuccess(status === "published" ? "评论已通过审核。" : "评论已拒绝。");
+            await loadCommentModeration();
+        }
+
+        setLoadingData(false);
+    };
+
     const resubmitPlugin = async (pluginId: string) => {
         if (!user) return;
         setLoadingData(true);
@@ -885,6 +1159,12 @@ export default function AdminPage() {
                     {notificationCounts.moderationUpdates > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.moderationUpdates > 99 ? "99+" : notificationCounts.moderationUpdates}</Badge>}
                 </span>
             </NavItem>
+            <NavItem icon={<CommentRegular />} value="myComments">
+                <span className="flex w-full items-center gap-2">
+                    <span>我的评论</span>
+                    {notificationCounts.commentUpdates > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.commentUpdates > 99 ? "99+" : notificationCounts.commentUpdates}</Badge>}
+                </span>
+            </NavItem>
             <NavItem icon={<KeyRegular />} value="tokens">发布 Token</NavItem>
             <NavItem icon={<HomeRegular />} value="ratings">
                 <span className="flex w-full items-center gap-2">
@@ -898,8 +1178,14 @@ export default function AdminPage() {
                     <NavSubItemGroup>
                         {canModerate && <NavSubItem value="moderation">
                             <span className="flex w-full items-center gap-2">
-                                <span>审核队列</span>
+                                <span>插件审核队列</span>
                                 {notificationCounts.moderationQueue > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.moderationQueue > 99 ? "99+" : notificationCounts.moderationQueue}</Badge>}
+                            </span>
+                        </NavSubItem>}
+                        {canModerate && <NavSubItem value="commentModeration">
+                            <span className="flex w-full items-center gap-2">
+                                <span>评论审核队列</span>
+                                {notificationCounts.commentQueue > 0 && <Badge appearance="filled" color="danger" size="small" className="ml-auto !min-w-5 !px-1">{notificationCounts.commentQueue > 99 ? "99+" : notificationCounts.commentQueue}</Badge>}
                             </span>
                         </NavSubItem>}
                         {canManageCertified && <NavSubItem value="certified">优秀应用评级</NavSubItem>}
@@ -915,10 +1201,12 @@ export default function AdminPage() {
         submit: "提交插件",
         myPlugins: "我的插件",
         tokens: "发布 Token",
-        moderation: "审核队列",
+        moderation: "插件审核队列",
+        commentModeration: "评论审核队列",
         allPlugins: "全量管理",
         certified: "优秀应用评级",
         ratings: "评分评论",
+        myComments: "我的评论",
     };
 
     return (
@@ -952,12 +1240,14 @@ export default function AdminPage() {
                         <Text as="h1" size={800} weight="semibold">{viewTitle[view]}</Text>
                     </div>
 
-                    {view === "overview" && <OverviewPanel myPluginCount={myPlugins.length} tokenCount={tokens.length} pendingMyPlugins={pendingMyPlugins} pendingRequests={pendingRequests} canModerate={canModerate} averageRating={averageRating} notificationCounts={notificationCounts} onOpenSubmit={() => openConsoleView("submit")} onOpenMyPlugins={() => openConsoleView("myPlugins")} onOpenTokens={() => openConsoleView("tokens")} onOpenModeration={() => openConsoleView("moderation")} onOpenRatings={() => openConsoleView("ratings")} onMarkNotificationsRead={markConsoleNotificationsRead} />}
+                    {view === "overview" && <OverviewPanel myPluginCount={myPlugins.length} tokenCount={tokens.length} pendingMyPlugins={pendingMyPlugins} pendingRequests={pendingRequests} canModerate={canModerate} averageRating={averageRating} commentCount={commentCount} downloadCount={downloadCount} downloadsLoading={downloadsLoading} downloadRefreshCoolingDown={downloadRefreshCoolingDown} notificationCounts={notificationCounts} onOpenSubmit={() => openConsoleView("submit")} onOpenMyPlugins={() => openConsoleView("myPlugins")} onOpenTokens={() => openConsoleView("tokens")} onOpenModeration={() => openConsoleView("moderation")} onOpenCommentModeration={() => openConsoleView("commentModeration")} onOpenMyComments={() => openConsoleView("myComments")} onOpenRatings={() => openConsoleView("ratings")} onRefreshDownloads={() => void loadDownloads(true)} onMarkNotificationsRead={markConsoleNotificationsRead} />}
                     {view === "submit" && <SubmitPanel form={form} tags={tags} loading={loadingData} onChange={updateForm} onTagChange={(tagIds) => setForm((prev) => ({ ...prev, tag_ids: tagIds }))} onSubmit={submitPlugin} />}
                     {view === "myPlugins" && <MyPluginsPanel plugins={myPlugins} moderationRequests={myModerationRequests} loading={loadingData} onReload={loadMyPlugins} onOpenDetail={openDetailDialog} />}
                     {view === "tokens" && <TokensPanel tokens={tokens} plugins={myPlugins} loading={loadingData} newToken={newToken} onCreateToken={createToken} onRevokeToken={revokeToken} onReload={loadTokens} />}
                     {view === "moderation" && canModerate && <ModerationPanel items={moderation} loading={loadingData} filter={moderationFilter} onFilterChange={setModerationFilter} onReload={loadModeration} onOpenTextDialog={openTextDialog} onOpenDetailDialog={openModerationDetailDialog} />}
-                    {view === "ratings" && canViewRatings && <RatingCommentsPanel items={ratings} loading={loadingData} ratingFilter={ratingFilter} keyword={ratingKeyword} onRatingFilterChange={setRatingFilter} onKeywordChange={setRatingKeyword} onReload={loadRatings} onOpenTextDialog={openTextDialog} />}
+                    {view === "commentModeration" && canModerate && <CommentModerationPanel items={commentModeration} loading={loadingData} filter={commentModerationFilter} onFilterChange={setCommentModerationFilter} onReload={loadCommentModeration} onReview={reviewComment} />}
+                    {view === "ratings" && canViewRatings && <RatingCommentsPanel items={ratings} myPluginIds={myPluginIds} currentUserId={user?.id} loading={loadingData} ratingFilter={ratingFilter} keyword={ratingKeyword} onRatingFilterChange={setRatingFilter} onKeywordChange={setRatingKeyword} onReload={loadRatings} onOpenTextDialog={openTextDialog} />}
+                    {view === "myComments" && <MyCommentsPanel items={myComments} loading={loadingData} onReload={loadMyComments} />}
                     {view === "certified" && canManageCertified && <CertifiedPluginsPanel plugins={certifiedPlugins} loading={loadingData} keyword={certifiedKeyword} onKeywordChange={setCertifiedKeyword} onReload={loadCertifiedPlugins} onCertifiedChange={updatePluginCertification} />}
                     {view === "allPlugins" && canManageAll && <PluginTablePanel title="全量插件管理" plugins={allPlugins} loading={loadingData} filter={pluginFilter} keyword={keyword} readonly={false} onFilterChange={setPluginFilter} onKeywordChange={setKeyword} onReload={loadAllPlugins} onStatusChange={updatePluginStatus} onOpenDetail={openDetailDialog} />}
 

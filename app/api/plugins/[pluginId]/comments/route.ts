@@ -21,7 +21,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
     const { data: ratings, error } = await requestSupabase
       .schema('cw')
       .from('cw_plugins_rating')
-      .select('user_id, rating, comment, created_at, updated_at')
+      .select('plugin_id, user_id, rating, created_at, updated_at, cw_plugin_rating_comments(content, status, review_comment, created_at, updated_at, reviewed_at, reviewed_by)')
       .eq('plugin_id', pluginId)
       .order('created_at', { ascending: false });
 
@@ -39,14 +39,32 @@ export async function GET(req: Request, ctx: { params: Promise<{ pluginId: strin
     }
 
     const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
-    const data = (ratings ?? []).map((rating) => ({
-      ...rating,
-      profile: profileMap.get(rating.user_id) ?? null,
-    }));
+    const data = (ratings ?? []).map((rating) => {
+      const comment = Array.isArray(rating.cw_plugin_rating_comments)
+        ? rating.cw_plugin_rating_comments[0] ?? null
+        : rating.cw_plugin_rating_comments;
+
+      return {
+        plugin_id: rating.plugin_id,
+        user_id: rating.user_id,
+        rating: rating.rating,
+        created_at: rating.created_at,
+        updated_at: rating.updated_at,
+        comment: comment?.content ?? null,
+        comment_status: comment?.status ?? null,
+        review_comment: comment?.review_comment ?? null,
+        comment_created_at: comment?.created_at ?? null,
+        comment_updated_at: comment?.updated_at ?? null,
+        profile: profileMap.get(rating.user_id) ?? null,
+      };
+    });
 
     return NextResponse.json({ ok: true, data });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || String(error) }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    );
   }
 }
 
@@ -74,19 +92,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ pluginId: stri
       return NextResponse.json({ ok: false, error: '请先登录后再评论' }, { status: 401 });
     }
 
-    const { error } = await requestSupabase.schema('cw').from('cw_plugins_rating').upsert({
-      plugin_id: pluginId,
-      user_id: authData.user.id,
-      rating,
-      comment: comment || null,
+    const { data: commentStatus, error } = await requestSupabase.schema('cw').rpc('submit_plugin_rating_comment', {
+      p_plugin_id: pluginId,
+      p_rating: rating,
+      p_content: comment || null,
     });
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || String(error) }, { status: 500 });
+    return NextResponse.json({
+      ok: true,
+      data: {
+        comment_status: commentStatus,
+        message: commentStatus === 'pending' ? '评论已提交，审核通过后公开显示。' : null,
+      },
+    });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    );
   }
 }

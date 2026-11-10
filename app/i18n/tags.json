@@ -1,0 +1,62 @@
+{
+  "development": {
+    "en": "Development",
+    "zh-CN": "开发"
+  },
+  "tools": {
+    "en": "Tools",
+    "zh-CN": "工具"
+  },
+  "productivity": {
+    "en": "Productivity",
+    "zh-CN": "效率"
+  },
+  "utility": {
+    "en": "Utility",
+    "zh-CN": "实用"
+  },
+  "example": {
+    "en": "Example",
+    "zh-CN": "示例"
+  },
+  "life": {
+    "en": "Life",
+    "zh-CN": "生活"
+  },
+  "learning": {
+    "en": "Learning",
+    "zh-CN": "学习"
+  },
+  "information": {
+    "en": "Information",
+    "zh-CN": "信息"
+  },
+  "reminder": {
+    "en": "Reminder",
+    "zh-CN": "提醒"
+  },
+  "automation": {
+    "en": "Automation",
+    "zh-CN": "自动化"
+  },
+  "game": {
+    "en": "Game",
+    "zh-CN": "游戏"
+  },
+  "entertainment": {
+    "en": "Entertainment",
+    "zh-CN": "娱乐"
+  },
+  "news": {
+    "en": "News",
+    "zh-CN": "新闻"
+  },
+  "widget": {
+    "en": "Widget",
+    "zh-CN": "小组件"
+  },
+  "classroom_environment": {
+    "en": "Classroom Environment",
+    "zh-CN": "班级环境"
+  }
+}
