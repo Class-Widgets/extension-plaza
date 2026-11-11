@@ -96,7 +96,7 @@ export type PluginCommentRow = {
 };
 
 export type MyCommentRow = PluginCommentRow & {
-    plugin?: Pick<PluginRow, "id" | "name"> | null;
+    plugin?: Pick<PluginRow, "id" | "name" | "status"> | null;
     rating?: number | null;
 };
 

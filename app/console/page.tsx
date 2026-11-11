@@ -718,7 +718,7 @@ export default function AdminPage() {
         const pluginIds = Array.from(new Set(comments.map((item) => item.plugin_id)));
         const [{ data: pluginRows }, { data: ratingRows }] = await Promise.all([
             pluginIds.length
-                ? supabase.schema("cw").from("cw_plugins").select("id, name").in("id", pluginIds)
+                  ? supabase.schema("cw").from("cw_plugins").select("id, name, status").in("id", pluginIds)
                 : Promise.resolve({ data: [], error: null }),
             pluginIds.length
                 ? supabase.schema("cw").from("cw_plugins_rating").select("plugin_id, rating").eq("user_id", user.id).in("plugin_id", pluginIds)

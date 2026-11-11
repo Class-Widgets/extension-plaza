@@ -25,6 +25,7 @@ import {
     Text,
     Textarea,
 } from "@fluentui/react-components";
+import { OpenRegular } from "@fluentui/react-icons";
 import type { ModerationRequest, PluginForm, PluginRow, TagRow } from "../../types";
 import { formatTime, statusAppearance } from "../../utils";
 import EmptyState from "@/app/components/Common/EmptyState";
@@ -211,6 +212,15 @@ export default function PluginDetailDialog({
                         )}
                     </DialogContent>
                     <DialogActions>
+                        <Button
+                            as="a"
+                            appearance="secondary"
+                            href={`/plugins/${encodeURIComponent(plugin.id)}`}
+                            disabled={plugin.status !== "published"}
+                            icon={<OpenRegular />}
+                        >
+                            在“插件广场”打开
+                        </Button>
                         <Button appearance="secondary" onClick={() => onOpenChange(false)}>
                             关闭
                         </Button>

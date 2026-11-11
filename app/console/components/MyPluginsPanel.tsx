@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Badge, Card, Divider, Spinner, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, Toolbar, ToolbarButton } from "@fluentui/react-components";
+import { Badge, Card, Divider, Spinner, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, Toolbar, ToolbarButton, tokens } from "@fluentui/react-components";
 import { ArrowSyncRegular } from "@fluentui/react-icons";
 import type { ModerationRequest, PluginRow } from "../types";
 import { formatTime, statusAppearance } from "../utils";
@@ -31,6 +31,25 @@ export default function MyPluginsPanel({ plugins, moderationRequests, loading, o
         return reqs[0].status;
     };
 
+    const stickyActionHeaderStyle: React.CSSProperties = {
+        position: "sticky",
+        right: 0,
+        zIndex: 2,
+        width: "max-content",
+        whiteSpace: "nowrap",
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: `-1px 0 0 ${tokens.colorNeutralStroke2}`,
+    };
+    const stickyActionCellStyle: React.CSSProperties = {
+        position: "sticky",
+        right: 0,
+        zIndex: 1,
+        width: "max-content",
+        whiteSpace: "nowrap",
+        backgroundColor: tokens.colorNeutralBackground1,
+        boxShadow: `-1px 0 0 ${tokens.colorNeutralStroke2}`,
+    };
+
     return (
         <Card className="!p-5 min-w-0">
             <Toolbar className="px-0 gap-3" style={{ flexWrap: "wrap" }}>
@@ -54,8 +73,8 @@ export default function MyPluginsPanel({ plugins, moderationRequests, loading, o
                                 <TableHeaderCell style={{ minWidth: 80 }}>版本</TableHeaderCell>
                                 <TableHeaderCell style={{ minWidth: 100 }}>状态</TableHeaderCell>
                                 <TableHeaderCell style={{ minWidth: 100 }}>审核状态</TableHeaderCell>
-                                <TableHeaderCell style={{ minWidth: 120 }}>仓库</TableHeaderCell>
                                 <TableHeaderCell style={{ minWidth: 140 }}>更新时间</TableHeaderCell>
+                                <TableHeaderCell style={stickyActionHeaderStyle}>操作</TableHeaderCell>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -86,12 +105,21 @@ export default function MyPluginsPanel({ plugins, moderationRequests, loading, o
                                                 <Text size={200}>-</Text>
                                             )}
                                         </TableCell>
-                                        <TableCell onClick={(e) => e.stopPropagation()}>
-                                            <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="hover:underline">
-                                                打开仓库
-                                            </a>
-                                        </TableCell>
                                         <TableCell>{formatTime(plugin.updated_at)}</TableCell>
+                                        <TableCell style={stickyActionCellStyle} onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex items-center gap-3 whitespace-nowrap">
+                                                <a href={plugin.repo_url} target="_blank" rel="noreferrer" className="hover:underline">
+                                                    打开仓库
+                                                </a>
+                                                {plugin.status === "published" ? (
+                                                    <a href={`/plugins/${encodeURIComponent(plugin.id)}`} className="hover:underline">
+                                                        在“插件广场”打开
+                                                    </a>
+                                                ) : (
+                                                    <Text size={200} className="text-gray-500 dark:text-gray-400">在“插件广场”打开</Text>
+                                                )}
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 );
                             })}

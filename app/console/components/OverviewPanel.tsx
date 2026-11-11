@@ -1,9 +1,13 @@
 "use client";
 
-import { Badge, Button, Card, Text } from "@fluentui/react-components";
-import { AddRegular, AppsListDetailRegular, ArrowDownloadRegular, ArrowSyncRegular, CommentRegular, KeyRegular, ShieldRegular, StarRegular } from "@fluentui/react-icons";
+import { useState } from "react";
+import { Badge, Button, Card, CardFooter, CardHeader, Image, MessageBar, MessageBarActions, MessageBarBody, MessageBarTitle, Text } from "@fluentui/react-components";
+import { AddRegular, AppsListDetailRegular, ArrowDownloadRegular, ArrowSyncRegular, CheckmarkRegular, CodeRegular, CommentRegular, CopyRegular, KeyRegular, OpenRegular, ShieldRegular, StarRegular } from "@fluentui/react-icons";
 import type { ConsoleNotificationCounts } from "@/app/components/Layout/useConsoleNotifications";
 import { formatCount } from "../utils";
+
+const DEVELOPER_QQ_GROUP_URL = "https://qm.qq.com/q/yrWLyF0laM";
+const DEVELOPER_QQ_GROUP_NUMBER = "1025650343";
 
 type OverviewPanelProps = {
     myPluginCount: number;
@@ -50,9 +54,57 @@ export default function OverviewPanel({
     onRefreshDownloads,
     onMarkNotificationsRead,
 }: OverviewPanelProps) {
+    const [groupNumberCopied, setGroupNumberCopied] = useState(false);
+    const copyDeveloperGroupNumber = async () => {
+        try {
+            await navigator.clipboard.writeText(DEVELOPER_QQ_GROUP_NUMBER);
+            setGroupNumberCopied(true);
+        } catch {
+            setGroupNumberCopied(false);
+        }
+    };
     const notificationCount = notificationCounts.moderationUpdates + notificationCounts.ratingUpdates + notificationCounts.commentUpdates + notificationCounts.commentQueue + notificationCounts.moderationQueue;
     return (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <MessageBar
+                className="col-span-2 lg:col-span-3 p-2"
+                intent="info"
+                icon={
+                    <Image
+                        src="/images/developer-qq-group.png"
+                        alt=""
+                        width={24}
+                        height={24}
+                        fit="cover"
+                        shape="circular"
+                    />
+                }
+            >
+                <MessageBarBody>
+                    <MessageBarTitle>加入 Class Widgets 开发者 QQ 群</MessageBarTitle>
+                    欢迎各位插件开发者入群，与我们交流插件开发、反馈问题并获取开发接口版本动态，相互促进项目发展！ο(=•ω＜=)ρ⌒☆、
+                </MessageBarBody>
+                <MessageBarActions>
+                    <Button
+                        appearance="secondary"
+
+                        icon={groupNumberCopied ? <CheckmarkRegular /> : <CopyRegular />}
+                        onClick={() => void copyDeveloperGroupNumber()}
+                    >
+                        {groupNumberCopied ? "已复制" : "复制群 ID (1025650343)"}
+                    </Button>
+                    <Button
+                        as="a"
+                        appearance="primary"
+                        href={DEVELOPER_QQ_GROUP_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        icon={<OpenRegular />}
+                    >
+                        加入群聊
+                    </Button>
+                </MessageBarActions>
+            </MessageBar>
             <Card className="!p-5 col-span-2 lg:col-span-3">
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2 mr-auto">
@@ -141,6 +193,19 @@ export default function OverviewPanel({
                     </Button>
                 </Card>
             )}
+            <Card className="col-span-2 lg:col-span-3">
+                <CardHeader
+                    image={<CodeRegular style={{ fontSize: 28 }} />}
+                    header={<Text size={500} weight="semibold">开发资源</Text>}
+                    description={<Text size={200}>插件开发常用资源</Text>}
+                />
+                <CardFooter>
+                    <Button as="a" appearance="subtle" href="https://github.com/RinLit-233-shiroko/Class-Widgets-2" target="_blank" rel="noreferrer" icon={<OpenRegular />}>Class Widgets 2 仓库</Button>
+                    <Button as="a" appearance="subtle" href="https://github.com/class-widgets/class-widgets-sdk" target="_blank" rel="noreferrer" icon={<OpenRegular />}>SDK 仓库</Button>
+                    <Button as="a" appearance="subtle" href="https://pypi.org/project/class-widgets-sdk/" target="_blank" rel="noreferrer" icon={<OpenRegular />}>SDK PyPI 包</Button>
+                    <Button as="a" appearance="subtle" href="https://github.com/Class-Widgets/plugin-template-v2/" target="_blank" rel="noreferrer" icon={<OpenRegular />}>插件模板</Button>
+                </CardFooter>
+            </Card>
         </div>
     );
 }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Badge, Button, Card, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Divider, RatingDisplay, Spinner, Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow, Text, Textarea, Toolbar, ToolbarButton } from "@fluentui/react-components";
-import { ArrowSyncRegular } from "@fluentui/react-icons";
+import { ArrowSyncRegular, OpenRegular } from "@fluentui/react-icons";
 import type { MyCommentRow } from "../types";
 import { formatTime, statusAppearance } from "../utils";
 import EmptyState from "@/app/components/Common/EmptyState";
@@ -171,6 +171,17 @@ export default function MyCommentsPanel({ items, loading, onReload }: MyComments
                         )}
                     </DialogContent>
                     <DialogActions>
+                        {detailItem && (
+                            <Button
+                                as="a"
+                                appearance="secondary"
+                                href={`/plugins/${encodeURIComponent(detailItem.plugin_id)}`}
+                                disabled={detailItem.plugin?.status !== "published"}
+                                icon={<OpenRegular />}
+                            >
+                                在“插件广场”打开
+                            </Button>
+                        )}
                         <Button appearance="secondary" onClick={() => setDetailItem(null)}>关闭</Button>
                     </DialogActions>
                 </DialogBody>
