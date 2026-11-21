@@ -37,15 +37,42 @@ export default function Footer() {
                 </div>
             </div>
             <Divider />
-            <div className="px-4 max-w-6xl mx-auto pb-8 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
+            <div className="px-4 max-w-6xl mx-auto pb-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center">
                 <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>© 2025 Class Widgets</Text>
                 <FluentLink
                     href="https://beian.miit.gov.cn/"
                     target="_blank"
                     rel="noopener noreferrer"
                     appearance="subtle"
+                    inline
                 >
                     <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>琼ICP备2026014960号-1</Text>
+                </FluentLink>
+                <FluentLink
+                    href="https://beian.mps.gov.cn/#/query/webSearch?code=46010002002491"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    appearance="subtle"
+                >
+                    <span className="inline-flex items-center gap-1 align-middle">
+                        <img
+                            src="/images/beian-logo.png"
+                            alt="公安备案徽标"
+                            width={20}
+                            height={20}
+                            className="block h-4 w-4 shrink-0 object-contain"
+                            style={{ display: "block", width: 16, height: 16 }}
+                        />
+                        <Text
+                            size={200}
+                            style={{
+                                color: tokens.colorNeutralForeground3,
+                                lineHeight: "16px",
+                            }}
+                        >
+                            琼公网安备46010002002491号
+                        </Text>
+                    </span>
                 </FluentLink>
             </div>
         </footer>
